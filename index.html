@@ -80,6 +80,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 .sw input:focus-visible+span{outline:3px solid var(--brand)}
 .s-ACTIVE{background:#d5f5e6}.s-DISABLED{background:#e4e0ee}.s-LOCKED{background:#fde0dd;color:#9a1d16}
 .tablewrap{overflow-x:auto}.codebox{font-size:18px;letter-spacing:.05em}
+#login a{color:var(--brand);font-weight:600;font-size:14px}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -95,12 +96,19 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
   <div class="brand">Leads <i>Monitoring</i><small>by PurpleHub</small></div><h1>Hey, welcome back!</h1><p class="sub">Enter the access code Tonik gave you to see your leads.</p>
   <label>Access code<input id="code" autocomplete="off" autocapitalize="characters" placeholder="e.g. PRO5-1076-MC"></label>
   <p><button id="loginBtn">Let me in</button></p>
-  <div id="loginMsg" class="msg err"></div></div></section>
+  <div id="loginMsg" class="msg err"></div>
+  <p><a href="#" id="rstLink">Need a new access code? Request a reset</a></p>
+  <div id="rstBox" class="hide">
+    <label>Your Access ID (first part of your code, e.g. PRO-1003)<input id="r_ref" autocomplete="off" autocapitalize="characters"></label><br>
+    <label>Full name (as registered)<input id="r_name"></label><br>
+    <label>Reason (optional)<input id="r_why"></label>
+    <p><button id="rstBtn">Send request to my RSM</button></p><div id="rstMsg" class="msg"></div></div>
+  </div></section>
 
 <div id="app" class="hide">
   <header><div class="logo"><b>Leads <i>Monitoring</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
   <main>
-    <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" data-tab="dash">Dashboard</button></nav>
+    <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" data-tab="dash">Dashboard</button><button class="tab hide" id="tabReqBtn" data-tab="req">Access requests<span id="reqBadge"></span></button></nav>
     <div id="tabLeads">
     <section class="card hide" id="formCard">
       <h2>Add a customer lead</h2>
@@ -144,9 +152,11 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
     </div>
     <div id="tabDash" class="hide"></div>
     <div id="tabAdmin" class="hide"></div>
+    <div id="tabReq" class="hide"></div>
   </main>
 </div>
 
+<dialog id="histDlg"><div id="histBody"></div><p><button id="histClose">Close</button></p></dialog>
 <dialog id="dupDlg"><div id="dupBody"></div><p><button id="dupClose">Close</button></p></dialog>
 
 <script>
@@ -188,6 +198,7 @@ async function boot(){
   if(showPro) $("fPro").innerHTML = '<option value="">All promoters</option>'+profs.filter(p=>p.role==="PROMOTER").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
   if(["HO","RSM"].includes(me.role)){ $("fTsm").classList.remove("hide"); fillTsm(); }
   if(me.role==="HO"){ $("fRsm").classList.remove("hide"); $("fRsm").innerHTML='<option value="">All RSMs</option>'+profs.filter(p=>p.role==="RSM").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join(""); }
+  if(["RSM","HO"].includes(me.role)){ $("tabReqBtn").classList.remove("hide"); loadReq(); }
   await load();
 }
 function fillTsm(){ const r=$("fRsm").value; $("fTsm").innerHTML='<option value="">All TSMs</option>'+Object.values(people).filter(p=>p.role==="TSM"&&(!r||p.manager_id===r)).map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join(""); }
@@ -313,8 +324,9 @@ function renderDash(){
   <section class="card"><h2>Promoter lead input</h2>${pros.length?pros.map((p,i)=>`<div class="fn"><div class="fnh"><span>${i+1}. ${esc(p.n)}</span><span>${p.c} lead(s) · ${peso(p.amt)} · ${p.ok} approved · ${p.bk} booked</span></div><div class="fnb"><i style="width:${p.c?Math.max(p.c/mx*100,3):0}%;background:var(--brand)"></i></div></div>`).join(""):"No promoters yet."}</section>`;
 }
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return;
-  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); const d=b.dataset.tab==="dash";
-  $("tabLeads").classList.toggle("hide",d); $("tabDash").classList.toggle("hide",!d); if(d) renderDash();});
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); const k=b.dataset.tab;
+  $("tabLeads").classList.toggle("hide",k!=="leads"); $("tabDash").classList.toggle("hide",k!=="dash"); $("tabReq").classList.toggle("hide",k!=="req");
+  if(k==="dash") renderDash(); if(k==="req") loadReq();});
 
 function showDup(){
   const g={}; leads.forEach(l=>{const k=l.customer_name.trim().replace(/\s+/g," ").toLowerCase(); (g[k]=g[k]||[]).push(l);});
@@ -341,6 +353,7 @@ $("list").addEventListener("click",async e=>{
 
 const ORDER=["ADMIN","HO","RSM","TSM","PROMOTER"], RN={ADMIN:"Admin",HO:"Head Office",RSM:"RSM",TSM:"TSM",PROMOTER:"Promoter"};
 let adm=[], sel=new Set(), codeOn=new Set();
+const fmtD=d=>new Date(d).toLocaleString("en-PH",{timeZone:"Asia/Manila",dateStyle:"medium",timeStyle:"short"});
 function initAdmin(){
   $("tabAdmin").innerHTML=`<section class="card"><h2>Create user</h2><div class="grid">
     <label>Full name<input id="a_name"></label>
@@ -349,7 +362,12 @@ function initAdmin(){
     <p><button id="a_create">Create user</button></p><div id="a_res" class="msg"></div></section>
   <section class="card"><h2>Users and access status</h2><div class="stats" id="a_stats"></div><br>
     <div class="bar"><input id="a_q" placeholder="Search name"><select id="a_f"><option value="">All access types</option><option value="HO">Head Office</option><option value="RSM">RSM</option><option value="TSM">TSM</option><option value="PROMOTER">Promoter</option><option value="ADMIN">Admin</option></select><button id="a_en">Enable selected</button><button class="ghost" id="a_dis">Disable selected</button></div>
-    <div class="tablewrap"><table><thead><tr><th><input type="checkbox" id="a_all" aria-label="Select all"></th><th>Name</th><th>Access type</th><th>Reports to</th><th>Status</th><th>Access code</th><th>Access</th></tr></thead><tbody id="a_body"></tbody></table></div></section>`;
+    <div id="a_notice" class="msg"></div>
+    <div class="tablewrap"><table><thead><tr><th><input type="checkbox" id="a_all" aria-label="Select all"></th><th>Name</th><th>Access type</th><th>Reports to</th><th>Status</th><th>Access code</th><th>Access</th><th>Details</th></tr></thead><tbody id="a_body"></tbody></table></div></section>
+  <section class="card"><h2>Audit extract</h2><p class="msg">Download the access history (created, locked, reset requested, approved by RSM, enabled, disabled) for a date range.</p>
+    <div class="grid"><label>From<input type="date" id="x_from"></label><label>To<input type="date" id="x_to"></label>
+    <label>Event<select id="x_ev"><option value="">All events</option><option value="CREATED">Created</option><option value="LOCKED">Locked</option><option value="RESET_REQUESTED">Reset requested</option><option value="RESET_APPROVED">Approved by RSM</option><option value="RESET_REJECTED">Rejected by RSM</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option></select></label></div>
+    <p><button id="x_go">Extract CSV</button></p><div id="x_msg" class="msg"></div></section>`;
   $("a_role").onchange=()=>{ const r=$("a_role").value, need=r==="TSM"?"RSM":r==="PROMOTER"?"TSM":""; $("a_mgrw").classList.toggle("hide",!need);
     if(need){ $("a_mgrl").textContent="Reports to ("+need+")"; $("a_mgr").innerHTML='<option value="">Select '+need+'</option>'+adm.filter(u=>u.role===need).map(u=>`<option value="${u.id}">${esc(u.full_name)}</option>`).join(""); } };
   $("a_create").onclick=async()=>{ const m=$("a_res"), name=$("a_name").value.trim(), role=$("a_role").value, mgr=$("a_mgr").value||null; m.className="msg err";
@@ -364,15 +382,63 @@ function initAdmin(){
   $("a_body").addEventListener("change",e=>{ const d=e.target.dataset;
     if(d.sw) setAccess([d.sw],e.target.checked,false);
     else if(d.sel){ e.target.checked?sel.add(d.sel):sel.delete(d.sel); } });
-  $("a_body").addEventListener("click",e=>{ const b=e.target.closest("[data-eye]"); if(!b) return; const id=b.dataset.eye; codeOn.has(id)?codeOn.delete(id):codeOn.add(id); renderAdmin(); });
+  $("a_body").addEventListener("click",e=>{ const h=e.target.closest("[data-hist]"); if(h){ openHist(h.dataset.hist); return; } const is=e.target.closest("[data-issue]"); if(is){ setAccess([is.dataset.issue],true,false); return; } const b=e.target.closest("[data-eye]"); if(!b) return; const id=b.dataset.eye; codeOn.has(id)?codeOn.delete(id):codeOn.add(id); renderAdmin(); });
+  $("x_from").value=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"}).slice(0,8)+"01"; $("x_to").value=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+  $("x_go").onclick=async()=>{ const f=$("x_from").value, t=$("x_to").value, m=$("x_msg"); m.className="msg err";
+    if(!f||!t||f>t){ m.textContent="Choose a valid date range (From must be on or before To)."; return; }
+    const {data,error}=await sb.rpc("admin_audit",{p_from:f,p_to:t,p_event:$("x_ev").value||null}); if(error){ m.textContent=error.message; return; }
+    if(!data.length){ m.textContent="No records in that range."; return; }
+    const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    const csv=[["Date and time (Manila)","Access ID","Name","Access type","Event","Done by","Details"].map(q).join(","),...data.map(r=>[new Date(r.happened_at).toLocaleString("en-PH",{timeZone:"Asia/Manila",hour12:false}),r.ref,r.full_name,RN[r.role],r.event,r.by_name,r.detail].map(q).join(","))].join("\n");
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download=`access-audit_${f}_to_${t}.csv`; a.click();
+    m.className="msg good"; m.textContent=data.length+" record(s) extracted."; };
   loadAdmin();
 }
 async function loadAdmin(){ const {data,error}=await sb.rpc("admin_list_users"); if(error){ alert(error.message); return; } adm=data; renderAdmin(); }
 async function setAccess(ids,en,ask){
   if(!ids.length){ alert("Select at least one user."); return; }
   if(ask&&!confirm(`Disable access for ${ids.length} user(s)?`)) return;
-  const {error}=await sb.rpc("admin_set_status",{p_ids:ids,p_enable:en}); if(error) alert(error.message); sel.clear(); await loadAdmin();
+  const {data,error}=await sb.rpc("admin_set_status",{p_ids:ids,p_enable:en}); if(error) alert(error.message); else showEnable(data,en); sel.clear(); await loadAdmin();
 }
+function showEnable(r,en){ const m=$("a_notice"); m.className="msg good"; let h="";
+  if(en&&r&&r.codes&&r.codes.length) h+="<b>New access codes issued. Share each privately:</b><br>"+r.codes.map(c=>`${esc(c.name)}: <b class="codebox">${esc(c.code)}</b>`).join("<br>");
+  if(en&&r&&r.skipped) h+=`<br>${r.skipped} locked user(s) were not enabled. They need an RSM-approved reset request first.`;
+  m.innerHTML=h; }
+async function openHist(id){
+  const u=adm.find(x=>x.id===id), {data,error}=await sb.rpc("admin_history",{p_user:id}); if(error){ alert(error.message); return; }
+  const L={CREATED:"Access created",LOCKED:"Locked (multiple wrong attempts)",DISABLED:"Disabled by Admin",RESET_REQUESTED:"Reset requested",RESET_APPROVED:"Approved by RSM",RESET_REJECTED:"Rejected by RSM",ENABLED:"Enabled by Admin"};
+  const last=e=>{const x=data.filter(r=>r.event===e).pop(); return x?fmtD(x.happened_at):"—";};
+  $("histBody").innerHTML=`<h2>Access history: ${esc(u?.full_name||"")}</h2><p class="msg">Official record. It cannot be edited or deleted.</p>
+   <div class="stats"><div>Created<strong style="font-size:15px">${last("CREATED")}</strong></div><div>Locked<strong style="font-size:15px">${last("LOCKED")}</strong></div><div>Approved by RSM<strong style="font-size:15px">${last("RESET_APPROVED")}</strong></div><div>Enabled<strong style="font-size:15px">${last("ENABLED")}</strong></div></div><br>`+
+   (data.length?data.map(r=>`<div class="dr"><div><b>${L[r.event]||r.event}</b><br><span class="sub">${esc(r.by_name||"")}${r.detail?" · "+esc(r.detail):""}</span></div><div>${fmtD(r.happened_at)}</div></div>`).join(""):"No history yet.");
+  $("histDlg").showModal();
+}
+$("histClose").onclick=()=>$("histDlg").close();
+let reqs=[];
+async function loadReq(){
+  const {data,error}=await sb.rpc("list_reset_requests"); if(error) return; reqs=data;
+  const n=reqs.filter(r=>r.status==="PENDING"&&r.can_act).length; $("reqBadge").textContent=n?" ("+n+")":""; renderReq();
+}
+function renderReq(){
+  $("tabReq").innerHTML=`<section class="card"><h2>Access code reset requests</h2><p class="msg">${me.role==="RSM"?"Requests from your TSMs and promoters.":"You can approve requests from RSMs and Head Office users, and see all others."} After approval, the Admin issues the new access code.</p>`+
+   (reqs.length?reqs.map(r=>`<div class="dg"><b>${esc(r.user_name)}</b> · ${RN[r.role]} <span class="pill s-${r.status==="PENDING"?"DISABLED":r.status==="REJECTED"?"LOCKED":"ACTIVE"}">${r.status}</span>
+    <div class="sub">Requested ${fmtD(r.requested_at)}${r.reason?" · "+esc(r.reason):""}</div>${r.decided_at?`<div class="sub">${r.status==="REJECTED"?"Rejected":"Approved"} by ${esc(r.decided_by_name)} on ${fmtD(r.decided_at)}</div>`:""}
+    ${r.status==="PENDING"&&r.can_act?`<p><button data-appr="${r.id}">Approve</button> <button class="ghost" data-rej="${r.id}">Reject</button></p>`:""}</div>`).join(""):"No requests yet.")+"</section>";
+}
+$("tabReq").addEventListener("click",async e=>{
+  const a=e.target.closest("[data-appr],[data-rej]"); if(!a) return; const ok=!!a.dataset.appr, id=Number(a.dataset.appr||a.dataset.rej); let note=null;
+  if(ok){ if(!confirm("Approve this access code reset? The Admin will then issue a new code.")) return; }
+  else { note=prompt("Reason for rejecting (optional):"); if(note===null) return; }
+  const {error}=await sb.rpc("approve_reset",{p_id:id,p_approve:ok,p_note:note}); if(error) alert(error.message); loadReq();
+});
+$("rstLink").onclick=e=>{ e.preventDefault(); $("rstBox").classList.toggle("hide"); };
+$("rstBtn").onclick=async()=>{
+  const m=$("rstMsg"), ref=$("r_ref").value.trim().toUpperCase().split("-").slice(0,2).join("-"), name=$("r_name").value.trim(); m.className="msg err";
+  if(!/^[A-Z0-9]+-[A-Z0-9]+$/.test(ref)||!name){ m.textContent="Enter your Access ID (for example PRO-1003) and your full name."; return; }
+  const {error}=await sb.rpc("request_reset",{p_ref:ref,p_name:name,p_reason:$("r_why").value.trim()||null});
+  if(error){ m.textContent="Could not send the request. Please try again."; return; }
+  m.className="msg good"; m.textContent="If your details match an account, your request has been sent to your RSM for approval. Once approved, the Admin will issue your new code.";
+};
 function adminRows(){ const q=$("a_q").value.toLowerCase(), f=$("a_f").value;
   return adm.filter(u=>(!f||u.role===f)&&(!q||u.full_name.toLowerCase().includes(q))).sort((a,b)=>ORDER.indexOf(a.role)-ORDER.indexOf(b.role)||a.full_name.localeCompare(b.full_name)); }
 function renderAdmin(){
@@ -381,9 +447,9 @@ function renderAdmin(){
   $("a_body").innerHTML=rows.map(u=>{ const mine=u.id===me.id, on=codeOn.has(u.id);
     return "<tr><td>"+(mine?"":`<input type="checkbox" data-sel="${u.id}" ${sel.has(u.id)?"checked":""} aria-label="Select ${esc(u.full_name)}">`)+"</td>"+
     d("Name",esc(u.full_name)+(mine?" (you)":""))+d("Access type",RN[u.role])+d("Reports to",esc(u.manager_name||"—"))+
-    d("Status",`<span class="pill s-${u.status}">${u.status==="LOCKED"?"LOCKED — multiple retries":u.status}</span>`)+
+    d("Status",`<span class="pill s-${u.status}">${u.status==="LOCKED"?"LOCKED — multiple retries":u.status}</span>${u.reset_status?`<div class="sub">${u.reset_status==="APPROVED"?"Reset approved by RSM — ready to enable":"Reset requested — awaiting RSM approval"}</div>`:""}`)+
     d("Access code",(on?esc(u.code||"—"):"••••-••••-••••")+`<button class="eye" data-eye="${u.id}" aria-label="${on?"Hide":"Show"} access code">${on?EYEOFF:EYE}</button>`)+
-    d("Access",mine?"—":`<label class="sw"><input type="checkbox" data-sw="${u.id}" ${u.status==="ACTIVE"?"checked":""} aria-label="Enable or disable access for ${esc(u.full_name)}"><span></span></label>`)+"</tr>"; }).join("");
+    d("Access",mine?"—":`<label class="sw"><input type="checkbox" data-sw="${u.id}" ${u.status==="ACTIVE"?"checked":""} ${u.status==="LOCKED"&&u.reset_status!=="APPROVED"?"disabled title='Needs RSM approval first'":""} aria-label="Enable or disable access for ${esc(u.full_name)}"><span></span></label>`)+d("Details",`<button class="ghost" data-hist="${u.id}">History</button>`+(u.reset_status==="APPROVED"?` <button data-issue="${u.id}">Issue new code</button>`:""))+"</tr>"; }).join("");
   $("a_all").checked=rows.some(u=>u.id!==me.id)&&rows.filter(u=>u.id!==me.id).every(u=>sel.has(u.id));
 }
 
