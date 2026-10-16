@@ -153,7 +153,7 @@ $("loginBtn").onclick=async()=>{
   const code=$("code").value.trim().toUpperCase();
   if(!code){ $("loginMsg").textContent="Enter your access code."; return; }
   const {error}=await sb.auth.signInWithPassword({email:code.toLowerCase()+"@codes.example.com",password:code});
-  if(error) $("loginMsg").textContent="Access code not recognized. Check it or contact Head Office."; else boot();
+  if(error) $("loginMsg").textContent=(/invalid login/i.test(error.message)?"Access code not recognized. Check it or contact Head Office.":"Error: "+error.message); else boot();
 };
 $("logout").onclick=async()=>{await sb.auth.signOut(); location.reload();};
 
