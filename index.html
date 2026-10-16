@@ -89,6 +89,8 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
         <label>Term (months)<select id="f_term"><option>3</option><option>4</option><option>5</option><option>6</option><option>8</option><option>9</option><option>10</option><option selected>12</option><option>18</option><option>24</option></select></label>
         <label>Merchant<select id="f_loc"><option value="">Select merchant</option><option>Asian Home Appliance</option><option>FC Home</option><option>Home Along</option><option>Robinsons Appliance</option></select></label>
         <label>Store name<input id="f_store" placeholder="Type the store name"></label>
+        <label>Source of lead<select id="f_src"><option value="">Select source</option><option>Walk-in</option><option>FB Leads</option><option>Tiktok Leads</option><option>My former client</option><option disabled>Repeat client (Head Office uploads only)</option><option>Others</option></select></label>
+        <label id="f_srcxw" class="hide">Please specify source<input id="f_srcx" placeholder="Where did this lead come from?"></label>
       </div><br>
       <label>Remarks<textarea id="f_rem" rows="2"></textarea></label>
       <p><button id="saveBtn">Save lead</button></p>
@@ -158,6 +160,7 @@ async function load(){
   leads = data; render();
 }
 
+const srcText=l=>l.lead_source==="Others"?"Others: "+(l.lead_source_other||""):(l.lead_source||"");
 const CLOSED=["Declined","Disbursed"], MERCH=["Asian Home Appliance","FC Home","Home Along","Robinsons Appliance"];
 function heat(l){ if(!l.promoter_id) return "POOL"; if(CLOSED.includes(l.status)) return "";
   const d=(Date.now()-new Date(l.assigned_at||l.created_at))/864e5; return d<=5?"Hot":d<=14?"Warm":""; }
@@ -179,7 +182,7 @@ function render(){
     <div class="meta">${esc(l.location)} · ${esc(l.store_name)}</div>
     <div class="row">${h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:""}${own?`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`:`<span class="pill st-${l.status}">${l.status}</span>`}</div>
     ${prom?`<div class="prom">${prom}</div>`:""}
-    <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}
+    <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Source",esc(srcText(l))||"—")}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}
     ${own?`<label>Remarks<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks"></label>`:kv("Remarks",esc(l.remarks)||"—")}</details></article>`;}).join("");
   $("empty").classList.toggle("hide",rows.length>0);
   $("empty").textContent="No leads match.";
@@ -195,12 +198,13 @@ $("loginBtn").onclick=async()=>{
 $("logout").onclick=async()=>{await sb.auth.signOut(); location.reload();};
 
 $("f_amt").addEventListener("input",e=>{const p=e.target.value.replace(/[^\d.]/g,"").split(".");const i=p[0].replace(/^0+(?=\d)/,"").replace(/\B(?=(\d{3})+(?!\d))/g,",");e.target.value=p.length>1?i+"."+p.slice(1).join("").slice(0,2):i;});
+$("f_src").addEventListener("change",()=>$("f_srcxw").classList.toggle("hide",$("f_src").value!=="Others"));
 $("saveBtn").onclick=async()=>{
   const m=$("formMsg"), name=$("f_name").value.trim(), mobile=$("f_mobile").value.trim(), item=$("f_item").value.trim(), amt=parseFloat($("f_amt").value.replace(/,/g,""));
-  if(!name||!/^(09|\+639)\d{9}$/.test(mobile.replace(/[\s-]/g,""))||!item||!(amt>0)||!$("f_loc").value||!$("f_store").value.trim()){ m.className="msg err"; m.textContent="Complete all fields: name, a valid PH mobile (09XXXXXXXXX), item, finance amount, merchant and store name."; return; }
-  const {error}=await sb.from("leads").insert({customer_name:name,mobile:mobile.replace(/[\s-]/g,""),item,loan_amount:amt,term_months:+$("f_term").value,location:$("f_loc").value,store_name:$("f_store").value.trim(),remarks:$("f_rem").value.trim()});
+  if(!name||!/^(09|\+639)\d{9}$/.test(mobile.replace(/[\s-]/g,""))||!item||!(amt>0)||!$("f_loc").value||!$("f_store").value.trim()||!$("f_src").value||($("f_src").value==="Others"&&!$("f_srcx").value.trim())){ m.className="msg err"; m.textContent="Complete all fields: name, a valid PH mobile (09XXXXXXXXX), item, finance amount, merchant, store name and source of lead (specify it if Others)."; return; }
+  const {error}=await sb.from("leads").insert({customer_name:name,mobile:mobile.replace(/[\s-]/g,""),item,loan_amount:amt,term_months:+$("f_term").value,location:$("f_loc").value,store_name:$("f_store").value.trim(),lead_source:$("f_src").value,lead_source_other:$("f_src").value==="Others"?$("f_srcx").value.trim():null,remarks:$("f_rem").value.trim()});
   if(error){ m.className="msg err"; m.textContent=error.message; return; }
-  ["f_name","f_mobile","f_item","f_amt","f_loc","f_store","f_rem"].forEach(i=>$(i).value="");
+  ["f_name","f_mobile","f_item","f_amt","f_loc","f_store","f_rem","f_src","f_srcx"].forEach(i=>$(i).value=""); $("f_srcxw").classList.add("hide");
   m.className="msg good"; m.textContent="Lead saved. Nice one!"; load();
 };
 
@@ -223,8 +227,8 @@ $("list").addEventListener("change",async e=>{
 
 $("csv").onclick=()=>{
   if(!me||me.role!=="HO") return;
-  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Status","Remarks"];
-  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,l.status,l.remarks].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
+  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Source","Status","Remarks"];
+  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,srcText(l),l.status,l.remarks].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([[head.join(","),...lines].join("\n")],{type:"text/csv"})); a.download="leads.csv"; a.click();
 };
 
