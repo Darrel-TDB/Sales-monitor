@@ -71,6 +71,15 @@ dialog::backdrop{background:rgba(20,8,50,.6)}
 .dg{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:16px}
 .dr{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line);font-size:14px;margin-top:10px}
 .sub{color:var(--mute)}
+input[type=checkbox]{width:auto;margin:0;padding:0}
+.sw{position:relative;display:inline-block;width:46px;height:26px;margin:0}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw span{position:absolute;inset:0;background:var(--line);border-radius:999px;transition:.2s;cursor:pointer}
+.sw span::before{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;background:#fff;border-radius:50%;transition:.2s}
+.sw input:checked+span{background:var(--ok)}.sw input:checked+span::before{transform:translateX(20px)}
+.sw input:focus-visible+span{outline:3px solid var(--brand)}
+.s-ACTIVE{background:#d5f5e6}.s-DISABLED{background:#e4e0ee}.s-LOCKED{background:#fde0dd;color:#9a1d16}
+.tablewrap{overflow-x:auto}.codebox{font-size:18px;letter-spacing:.05em}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -121,6 +130,8 @@ dialog::backdrop{background:rgba(20,8,50,.6)}
       <h2 id="listTitle">Leads</h2>
       <div class="bar">
         <input id="q" placeholder="Search customer or item">
+        <select id="fRsm" class="hide"><option value="">All RSMs</option></select>
+        <select id="fTsm" class="hide"><option value="">All TSMs</option></select>
         <select id="fHeat"><option value="">All leads</option><option value="HW">Hot &amp; Warm</option><option value="Hot">Hot only</option><option value="Warm">Warm only</option><option value="POOL">Unassigned</option></select>
         <select id="fStatus"><option value="">All statuses</option></select>
         <select id="fPro" class="hide"><option value="">All promoters</option></select>
@@ -132,6 +143,7 @@ dialog::backdrop{background:rgba(20,8,50,.6)}
     </section>
     </div>
     <div id="tabDash" class="hide"></div>
+    <div id="tabAdmin" class="hide"></div>
   </main>
 </div>
 
@@ -143,7 +155,7 @@ const SUPABASE_URL = "https://wxflqiswoifwpyxjtgis.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4ZmxxaXN3b2lmd3B5eGp0Z2lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNDA1ODAsImV4cCI6MjEwNzcxNjU4MH0.isva0tkzWyc_XSZQhYoXIxrymKB_24gIrIFQZSqzpCE";   // the anon key is safe to publish; RLS protects the data
 // =================================================================
 const STATUSES = ["New","Contacted","Approved","Declined","Disbursed"];
-const ROLE_NAME = {HO:"Head Office",RSM:"Regional Sales Manager",TSM:"Territory Sales Manager",PROMOTER:"Promoter"};
+const ROLE_NAME = {ADMIN:"Admin",HO:"Head Office",RSM:"Regional Sales Manager",TSM:"Territory Sales Manager",PROMOTER:"Promoter"};
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,{auth:{storage:window.sessionStorage,persistSession:true,autoRefreshToken:true}});
 const $ = id => document.getElementById(id);
 let me, people = {}, leads = [], shown = null, hideT;
@@ -161,6 +173,8 @@ async function boot(){
   me = people[session.user.id];
   $("login").classList.add("hide"); $("app").classList.remove("hide");
   $("who").textContent = `${me.full_name} (${ROLE_NAME[me.role]})`;
+  if(me.role==="ADMIN"){ ["tabs","tabLeads","tabDash"].forEach(i=>$(i).classList.add("hide")); $("tabAdmin").classList.remove("hide"); initAdmin(); return; }
+  $("tabLeads").classList.remove("hide"); $("tabAdmin").classList.add("hide");
   $("formCard").classList.toggle("hide", me.role!=="PROMOTER");
   $("listTitle").textContent = me.role==="PROMOTER" ? "My leads" : me.role==="HO" ? "All leads" : "Leads in my team";
   $("fStatus").innerHTML = '<option value="">All statuses</option>'+STATUSES.map(s=>`<option>${s}</option>`).join("");
@@ -172,8 +186,11 @@ async function boot(){
   const showPro = me.role!=="PROMOTER";
   $("fPro").classList.toggle("hide",!showPro);
   if(showPro) $("fPro").innerHTML = '<option value="">All promoters</option>'+profs.filter(p=>p.role==="PROMOTER").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
+  if(["HO","RSM"].includes(me.role)){ $("fTsm").classList.remove("hide"); fillTsm(); }
+  if(me.role==="HO"){ $("fRsm").classList.remove("hide"); $("fRsm").innerHTML='<option value="">All RSMs</option>'+profs.filter(p=>p.role==="RSM").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join(""); }
   await load();
 }
+function fillTsm(){ const r=$("fRsm").value; $("fTsm").innerHTML='<option value="">All TSMs</option>'+Object.values(people).filter(p=>p.role==="TSM"&&(!r||p.manager_id===r)).map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join(""); }
 
 async function load(){
   const {data,error} = await sb.from("leads").select("*").order("created_at",{ascending:false});
@@ -186,8 +203,9 @@ const CLOSED=["Declined","Disbursed"], MERCH=["Asian Home Appliance","FC Home","
 function heat(l){ if(!l.promoter_id) return "POOL"; if(CLOSED.includes(l.status)) return "";
   const d=(Date.now()-new Date(l.assigned_at||l.created_at))/864e5; return d<=5?"Hot":d<=14?"Warm":""; }
 function filtered(){
-  const q=$("q").value.toLowerCase(), st=$("fStatus").value, pr=$("fPro").value, ht=$("fHeat").value;
-  return leads.filter(l=>(!st||l.status===st)&&(!pr||l.promoter_id===pr)&&
+  const q=$("q").value.toLowerCase(), st=$("fStatus").value, pr=$("fPro").value, ht=$("fHeat").value, rs=$("fRsm").value, ts=$("fTsm").value;
+  const tsmOf=l=>people[l.promoter_id]?.manager_id, rsmOf=l=>l.promoter_id?people[tsmOf(l)]?.manager_id:l.rsm_id;
+  return leads.filter(l=>(!st||l.status===st)&&(!pr||l.promoter_id===pr)&&(!rs||rsmOf(l)===rs)&&(!ts||tsmOf(l)===ts)&&
     (!ht||(ht==="HW"?["Hot","Warm"].includes(heat(l)):heat(l)===ht))&&
     (!q||[l.customer_name,l.item].join(" ").toLowerCase().includes(q)));
 }
@@ -212,11 +230,15 @@ function render(){
 }
 
 $("loginBtn").onclick=async()=>{
-  $("loginMsg").textContent="";
+  const m=$("loginMsg"); m.textContent="";
   const code=$("code").value.trim().toUpperCase();
-  if(!code){ $("loginMsg").textContent="Enter your access code."; return; }
+  if(!code){ m.textContent="Enter your access code."; return; }
   const {error}=await sb.auth.signInWithPassword({email:code.toLowerCase()+"@codes.example.com",password:code});
-  if(error) $("loginMsg").textContent=(/invalid login/i.test(error.message)?"Access code not recognized. Check it or contact Head Office.":"Error: "+error.message); else boot();
+  if(!error){ await sb.rpc("login_ok"); boot(); return; }
+  if(/invalid login|banned/i.test(error.message)){
+    const {data}=await sb.rpc("login_failed",{p_ref:code.split("-").slice(0,2).join("-")}), st=data?.status;
+    m.textContent=st==="LOCKED"?"This access is LOCKED due to multiple retries. Please contact the Admin.":st==="DISABLED"?"Your access is disabled. Please contact the Admin.":st==="ACTIVE"?`Access code not recognized. ${data.left} attempt(s) left before this access is locked.`:"Access code not recognized.";
+  } else m.textContent="Error: "+error.message;
 };
 $("logout").onclick=async()=>{await sb.auth.signOut(); location.reload();};
 
@@ -246,7 +268,7 @@ $("list").addEventListener("change",async e=>{
   else return;
   if(r.error) alert(r.error.message); load();
 });
-["q","fStatus","fPro","fHeat"].forEach(i=>$(i).addEventListener("input",render));
+["q","fStatus","fPro","fHeat","fRsm","fTsm"].forEach(i=>$(i).addEventListener("input",render));
 
 $("csv").onclick=()=>{
   if(!me||me.role!=="HO") return;
@@ -302,6 +324,7 @@ function showDup(){
    groups.map(a=>`<div class="dg"><b>${esc(a[0].customer_name)}</b> · ${a.length} entries`+a.map((l,i)=>`<div class="dr"><div>${i===0?'<span class="pill h-Warm">1st touch</span> ':""}${esc(people[l.promoter_id]?.full_name||"Unassigned")} · TSM: ${esc(tsmOf(l))}<br><span class="sub">${new Date(l.created_at).toLocaleDateString("en-PH")} · ${esc(l.location)} · ${esc(l.store_name)} · ${l.status}</span></div><div>${l.dup_flag?`<button class="ghost" data-unflag="${l.id}">Flagged · Undo</button>`:`<button data-flag="${l.id}">Flag as duplicate</button>`}</div></div>`).join("")+"</div>").join("");
   if(!$("dupDlg").open) $("dupDlg").showModal();
 }
+$("fRsm").addEventListener("input",()=>{fillTsm();render();});
 $("dupBtn").onclick=showDup; $("dupClose").onclick=()=>$("dupDlg").close();
 $("dupBody").addEventListener("click",async e=>{
   const b=e.target.closest("[data-flag],[data-unflag]"); if(!b) return;
@@ -315,6 +338,54 @@ $("list").addEventListener("click",async e=>{
   if(!confirm("Delete this lead permanently? This cannot be undone.")) return;
   const {error}=await sb.rpc("delete_lead",{p_lead:Number(b.dataset.del)}); if(error) alert(error.message); load();
 });
+
+const ORDER=["ADMIN","HO","RSM","TSM","PROMOTER"], RN={ADMIN:"Admin",HO:"Head Office",RSM:"RSM",TSM:"TSM",PROMOTER:"Promoter"};
+let adm=[], sel=new Set(), codeOn=new Set();
+function initAdmin(){
+  $("tabAdmin").innerHTML=`<section class="card"><h2>Create user</h2><div class="grid">
+    <label>Full name<input id="a_name"></label>
+    <label>Access type<select id="a_role"><option value="">Select access type</option><option value="HO">Head Office</option><option value="RSM">Regional Sales Manager (RSM)</option><option value="TSM">Territory Sales Manager (TSM)</option><option value="PROMOTER">Promoter</option></select></label>
+    <label id="a_mgrw" class="hide"><span id="a_mgrl">Reports to</span><select id="a_mgr"></select></label></div>
+    <p><button id="a_create">Create user</button></p><div id="a_res" class="msg"></div></section>
+  <section class="card"><h2>Users and access status</h2><div class="stats" id="a_stats"></div><br>
+    <div class="bar"><input id="a_q" placeholder="Search name"><select id="a_f"><option value="">All access types</option><option value="HO">Head Office</option><option value="RSM">RSM</option><option value="TSM">TSM</option><option value="PROMOTER">Promoter</option><option value="ADMIN">Admin</option></select><button id="a_en">Enable selected</button><button class="ghost" id="a_dis">Disable selected</button></div>
+    <div class="tablewrap"><table><thead><tr><th><input type="checkbox" id="a_all" aria-label="Select all"></th><th>Name</th><th>Access type</th><th>Reports to</th><th>Status</th><th>Access code</th><th>Access</th></tr></thead><tbody id="a_body"></tbody></table></div></section>`;
+  $("a_role").onchange=()=>{ const r=$("a_role").value, need=r==="TSM"?"RSM":r==="PROMOTER"?"TSM":""; $("a_mgrw").classList.toggle("hide",!need);
+    if(need){ $("a_mgrl").textContent="Reports to ("+need+")"; $("a_mgr").innerHTML='<option value="">Select '+need+'</option>'+adm.filter(u=>u.role===need).map(u=>`<option value="${u.id}">${esc(u.full_name)}</option>`).join(""); } };
+  $("a_create").onclick=async()=>{ const m=$("a_res"), name=$("a_name").value.trim(), role=$("a_role").value, mgr=$("a_mgr").value||null; m.className="msg err";
+    if(!name||!role||(["TSM","PROMOTER"].includes(role)&&!mgr)){ m.textContent="Enter the name, the access type and who they report to."; return; }
+    const {data,error}=await sb.rpc("admin_create_user",{p_name:name,p_role:role,p_manager:mgr}); if(error){ m.textContent=error.message; return; }
+    m.className="msg good"; m.innerHTML=`Created ${esc(name)}. Access code: <b class="codebox">${esc(data)}</b> <button class="ghost" id="a_copy">Copy</button><br>Share it with the user privately. It also shows in the list below.`;
+    $("a_copy").onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(data);
+    $("a_name").value=""; $("a_role").value=""; $("a_mgrw").classList.add("hide"); await loadAdmin(); };
+  ["a_q","a_f"].forEach(i=>$(i).addEventListener("input",renderAdmin));
+  $("a_all").onchange=e=>{ const vis=adminRows().filter(u=>u.id!==me.id).map(u=>u.id); vis.forEach(id=>e.target.checked?sel.add(id):sel.delete(id)); renderAdmin(); };
+  $("a_en").onclick=()=>setAccess([...sel],true,false); $("a_dis").onclick=()=>setAccess([...sel],false,true);
+  $("a_body").addEventListener("change",e=>{ const d=e.target.dataset;
+    if(d.sw) setAccess([d.sw],e.target.checked,false);
+    else if(d.sel){ e.target.checked?sel.add(d.sel):sel.delete(d.sel); } });
+  $("a_body").addEventListener("click",e=>{ const b=e.target.closest("[data-eye]"); if(!b) return; const id=b.dataset.eye; codeOn.has(id)?codeOn.delete(id):codeOn.add(id); renderAdmin(); });
+  loadAdmin();
+}
+async function loadAdmin(){ const {data,error}=await sb.rpc("admin_list_users"); if(error){ alert(error.message); return; } adm=data; renderAdmin(); }
+async function setAccess(ids,en,ask){
+  if(!ids.length){ alert("Select at least one user."); return; }
+  if(ask&&!confirm(`Disable access for ${ids.length} user(s)?`)) return;
+  const {error}=await sb.rpc("admin_set_status",{p_ids:ids,p_enable:en}); if(error) alert(error.message); sel.clear(); await loadAdmin();
+}
+function adminRows(){ const q=$("a_q").value.toLowerCase(), f=$("a_f").value;
+  return adm.filter(u=>(!f||u.role===f)&&(!q||u.full_name.toLowerCase().includes(q))).sort((a,b)=>ORDER.indexOf(a.role)-ORDER.indexOf(b.role)||a.full_name.localeCompare(b.full_name)); }
+function renderAdmin(){
+  const rows=adminRows(), c=x=>adm.filter(u=>u.status===x).length, d=(k,v)=>`<td data-label="${k}">${v}</td>`;
+  $("a_stats").innerHTML=`<div>Active<strong>${c("ACTIVE")}</strong></div><div>Disabled<strong>${c("DISABLED")}</strong></div><div>Locked<strong>${c("LOCKED")}</strong></div>`;
+  $("a_body").innerHTML=rows.map(u=>{ const mine=u.id===me.id, on=codeOn.has(u.id);
+    return "<tr><td>"+(mine?"":`<input type="checkbox" data-sel="${u.id}" ${sel.has(u.id)?"checked":""} aria-label="Select ${esc(u.full_name)}">`)+"</td>"+
+    d("Name",esc(u.full_name)+(mine?" (you)":""))+d("Access type",RN[u.role])+d("Reports to",esc(u.manager_name||"—"))+
+    d("Status",`<span class="pill s-${u.status}">${u.status==="LOCKED"?"LOCKED — multiple retries":u.status}</span>`)+
+    d("Access code",(on?esc(u.code||"—"):"••••-••••-••••")+`<button class="eye" data-eye="${u.id}" aria-label="${on?"Hide":"Show"} access code">${on?EYEOFF:EYE}</button>`)+
+    d("Access",mine?"—":`<label class="sw"><input type="checkbox" data-sw="${u.id}" ${u.status==="ACTIVE"?"checked":""} aria-label="Enable or disable access for ${esc(u.full_name)}"><span></span></label>`)+"</tr>"; }).join("");
+  $("a_all").checked=rows.some(u=>u.id!==me.id)&&rows.filter(u=>u.id!==me.id).every(u=>sel.has(u.id));
+}
 
 let lastAct=Date.now();
 ["mousemove","keydown","click","touchstart","scroll"].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now();},{passive:true}));
