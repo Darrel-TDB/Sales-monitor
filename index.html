@@ -8,10 +8,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <style>
-:root{--bg:#f5f1ff;--card:#fff;--ink:#241046;--mute:#6f6490;--line:#e6dcfb;--brand:#6a2ee0;--deep:#2b0d6b;--brand-ink:#fff;--pop:#c9f26b;--ok:#0f8a5f;--bad:#c4372f}
-@media (prefers-color-scheme:dark){:root{--bg:#150b2e;--card:#21143f;--ink:#f3edff;--mute:#aea0d6;--line:#3a2a63;--brand:#9a73ff;--deep:#0f0722;--brand-ink:#150b2e;--ok:#46d19b;--bad:#ff8077}}
+:root{--bg:#f5f1ff;--card:#fff;--ink:#241046;--mute:#6f6490;--line:#e6dcfb;--brand:#6a2ee0;--deep:#2b0d6b;--brand-ink:#fff;--pop:#c9f26b;--ok:#0f8a5f;--bad:#c4372f;--g1:#2b0d6b;--g2:#4a1fb8;--g3:#8a5cf0}
+@media (prefers-color-scheme:dark){:root{--bg:#150b2e;--card:#21143f;--ink:#f3edff;--mute:#aea0d6;--line:#3a2a63;--brand:#9a73ff;--deep:#0f0722;--brand-ink:#150b2e;--ok:#46d19b;--bad:#ff8077;--g1:#0f0722;--g2:#25104f;--g3:#4a2a9a}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 Poppins,system-ui,sans-serif}
+body{margin:0;background:radial-gradient(circle at 8% 6%,rgba(201,242,107,.28) 0,transparent 26%),radial-gradient(circle at 95% 18%,rgba(255,255,255,.18) 0,transparent 30%),linear-gradient(165deg,var(--g1) 0,var(--g2) 48%,var(--g3) 100%) fixed;color:var(--ink);font:15px/1.55 Poppins,system-ui,sans-serif}
+body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.14' stroke-width='2'%3E%3Ccircle cx='40' cy='40' r='18'/%3E%3Crect x='104' y='96' width='44' height='28' rx='6'/%3E%3Cpath d='M104 106h44'/%3E%3Cpath d='M30 130h22l-3 22H33z'/%3E%3C/g%3E%3Cg fill='%23ffffff' fill-opacity='.14' font-family='sans-serif' font-size='16' font-weight='700'%3E%3Ctext x='34' y='46'%3E%E2%82%B1%3C/text%3E%3Ccircle cx='120' cy='40' r='3'/%3E%3Ccircle cx='132' cy='40' r='3'/%3E%3Ccircle cx='144' cy='40' r='3'/%3E%3C/g%3E%3C/svg%3E")}
 header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;background:var(--deep);color:#fff}
 header b{font-weight:700;font-size:20px}header b i{font-style:normal;color:var(--pop)}
 header .me{font-size:13px;opacity:.9}
@@ -34,7 +35,7 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 .st-New{background:#ece4ff}.st-Contacted,.st-Applied{background:#fff2c9}.st-Approved,.st-Disbursed{background:#d5f5e6}.st-Declined{background:#fde0dd}
 .st{color:#241046}
 .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.bar>*{flex:1;min-width:150px;margin:0}
-#login{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;background:var(--deep);border:0;border-radius:0}
+#login{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;background:transparent;border:0;border-radius:0}
 #login .box{width:100%;max-width:400px;background:var(--card);border-radius:24px;padding:30px}
 #login h1{margin:0 0 4px;font-size:26px;line-height:1.2}#login p.sub{margin:0 0 18px;color:var(--mute)}
 #loginBtn{width:100%;background:var(--pop);color:var(--deep);font-weight:700}
@@ -65,9 +66,10 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
         <label>Customer name<input id="f_name"></label>
         <label>Mobile number<input id="f_mobile" inputmode="tel" placeholder="09XXXXXXXXX"></label>
         <label>Item interested<input id="f_item" placeholder="e.g. iPhone 15, Aircon"></label>
-        <label>Loan amount (PHP)<input id="f_amt" type="number" min="0" step="0.01"></label>
-        <label>Term (months)<select id="f_term"><option>3</option><option>6</option><option selected>12</option><option>18</option><option>24</option></select></label>
-        <label>Store / location<input id="f_loc"></label>
+        <label>Possible Finance Amount (₱)<input id="f_amt" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 25,000"></label>
+        <label>Term (months)<select id="f_term"><option>3</option><option>4</option><option>5</option><option>6</option><option>8</option><option>9</option><option>10</option><option selected>12</option><option>18</option><option>24</option></select></label>
+        <label>Merchant<select id="f_loc"><option value="">Select merchant</option><option>Asian Home Appliance</option><option>FC Home</option><option>Home Along</option><option>Robinsons Appliance</option></select></label>
+        <label>Store name<input id="f_store" placeholder="Type the store name"></label>
       </div><br>
       <label>Remarks<textarea id="f_rem" rows="2"></textarea></label>
       <p><button id="saveBtn">Save lead</button></p>
@@ -92,8 +94,8 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 
 <script>
 // ====== CONFIGURE THESE (Supabase > Project Settings > API) ======
-const SUPABASE_URL = "https://wxflqiswoifwpyxjtgis.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4ZmxxaXN3b2lmd3B5eGp0Z2lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNDA1ODAsImV4cCI6MjEwNzcxNjU4MH0.isva0tkzWyc_XSZQhYoXIxrymKB_24gIrIFQZSqzpCE";   // the anon key is safe to publish; RLS protects the data
+const SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
+const SUPABASE_ANON_KEY = "YOUR-ANON-PUBLIC-KEY";   // the anon key is safe to publish; RLS protects the data
 // =================================================================
 const STATUSES = ["New","Contacted","Applied","Approved","Declined","Disbursed"];
 const ROLE_NAME = {HO:"Head Office",RSM:"Regional Sales Manager",TSM:"Territory Sales Manager",PROMOTER:"Promoter"};
@@ -136,11 +138,11 @@ function filtered(){
 function render(){
   const rows=filtered(), team=me.role!=="PROMOTER";
   const approved=rows.filter(l=>["Approved","Disbursed"].includes(l.status));
-  $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total loan value<strong>${peso(rows.reduce((a,l)=>a+Number(l.loan_amount),0))}</strong></div><div>Approved / disbursed<strong>${approved.length}</strong></div>`;
-  $("thead").innerHTML="<tr><th>Date</th>"+(team?"<th>Promoter</th>":"")+"<th>Customer</th><th>Mobile</th><th>Item</th><th>Loan</th><th>Term</th><th>Location</th><th>Status</th><th>Remarks</th></tr>";
+  $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total finance amount<strong>${peso(rows.reduce((a,l)=>a+Number(l.loan_amount),0))}</strong></div><div>Approved / disbursed<strong>${approved.length}</strong></div>`;
+  $("thead").innerHTML="<tr><th>Date</th>"+(team?"<th>Promoter</th>":"")+"<th>Customer</th><th>Mobile</th><th>Item</th><th>Finance amount</th><th>Term</th><th>Merchant</th><th>Store</th><th>Status</th><th>Remarks</th></tr>";
   $("tbody").innerHTML=rows.map(l=>{const c=(k,v)=>`<td data-label="${k}">${v}</td>`;
     return "<tr>"+c("Date",new Date(l.created_at).toLocaleDateString("en-PH"))+(team?c("Promoter",esc(people[l.promoter_id]?.full_name)):"")+
-    c("Customer",esc(l.customer_name))+c("Mobile",esc(l.mobile))+c("Item",esc(l.item))+c("Loan",peso(l.loan_amount))+c("Term",(l.term_months||"")+" mo")+c("Location",esc(l.location))+
+    c("Customer",esc(l.customer_name))+c("Mobile",esc(l.mobile))+c("Item",esc(l.item))+c("Finance amount",peso(l.loan_amount))+c("Term",(l.term_months||"")+" mo")+c("Merchant",esc(l.location))+c("Store",esc(l.store_name))+
     c("Status",`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`)+c("Remarks",esc(l.remarks))+"</tr>";}).join("");
   $("empty").classList.toggle("hide",rows.length>0);
   $("empty").textContent="No leads match.";
@@ -155,12 +157,13 @@ $("loginBtn").onclick=async()=>{
 };
 $("logout").onclick=async()=>{await sb.auth.signOut(); location.reload();};
 
+$("f_amt").addEventListener("input",e=>{const p=e.target.value.replace(/[^\d.]/g,"").split(".");const i=p[0].replace(/^0+(?=\d)/,"").replace(/\B(?=(\d{3})+(?!\d))/g,",");e.target.value=p.length>1?i+"."+p.slice(1).join("").slice(0,2):i;});
 $("saveBtn").onclick=async()=>{
-  const m=$("formMsg"), name=$("f_name").value.trim(), mobile=$("f_mobile").value.trim(), item=$("f_item").value.trim(), amt=parseFloat($("f_amt").value);
-  if(!name||!/^(09|\+639)\d{9}$/.test(mobile.replace(/[\s-]/g,""))||!item||!(amt>0)){ m.className="msg err"; m.textContent="Enter name, a valid PH mobile number (09XXXXXXXXX), item and loan amount."; return; }
-  const {error}=await sb.from("leads").insert({customer_name:name,mobile:mobile.replace(/[\s-]/g,""),item,loan_amount:amt,term_months:+$("f_term").value,location:$("f_loc").value.trim(),remarks:$("f_rem").value.trim()});
+  const m=$("formMsg"), name=$("f_name").value.trim(), mobile=$("f_mobile").value.trim(), item=$("f_item").value.trim(), amt=parseFloat($("f_amt").value.replace(/,/g,""));
+  if(!name||!/^(09|\+639)\d{9}$/.test(mobile.replace(/[\s-]/g,""))||!item||!(amt>0)||!$("f_loc").value||!$("f_store").value.trim()){ m.className="msg err"; m.textContent="Complete all fields: name, a valid PH mobile (09XXXXXXXXX), item, finance amount, merchant and store name."; return; }
+  const {error}=await sb.from("leads").insert({customer_name:name,mobile:mobile.replace(/[\s-]/g,""),item,loan_amount:amt,term_months:+$("f_term").value,location:$("f_loc").value,store_name:$("f_store").value.trim(),remarks:$("f_rem").value.trim()});
   if(error){ m.className="msg err"; m.textContent=error.message; return; }
-  ["f_name","f_mobile","f_item","f_amt","f_loc","f_rem"].forEach(i=>$(i).value="");
+  ["f_name","f_mobile","f_item","f_amt","f_loc","f_store","f_rem"].forEach(i=>$(i).value="");
   m.className="msg good"; m.textContent="Lead saved. Nice one!"; load();
 };
 
@@ -170,8 +173,8 @@ $("tbody").addEventListener("change",async e=>{
 ["q","fStatus","fPro"].forEach(i=>$(i).addEventListener("input",render));
 
 $("csv").onclick=()=>{
-  const head=["Date","Promoter","Customer","Mobile","Item","Loan","Term","Location","Status","Remarks"];
-  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.status,l.remarks].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
+  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Status","Remarks"];
+  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,l.status,l.remarks].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([[head.join(","),...lines].join("\n")],{type:"text/csv"})); a.download="leads.csv"; a.click();
 };
 
