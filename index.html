@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BNPL Sales Monitor</title>
+<title>Leads Monitoring by PurpleHub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
@@ -16,10 +16,10 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;op
 header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;background:var(--deep);color:#fff}
 header b{font-weight:700;font-size:20px}header b i{font-style:normal;color:var(--pop)}
 header .me{font-size:13px;opacity:.9}
-main{max-width:1100px;margin:0 auto;padding:20px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:22px;margin-bottom:18px}
+main{max-width:1400px;margin:0 auto;padding:32px 24px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px;margin-bottom:26px}
 h2{margin:0 0 14px;font-size:18px;font-weight:700}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:20px}
 label{display:block;font-size:13px;color:var(--mute);font-weight:500}
 input,select,textarea{width:100%;margin-top:5px;padding:12px 14px;border:1.5px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);font:inherit}
 :focus-visible{outline:3px solid var(--brand);outline-offset:1px}
@@ -43,6 +43,22 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 .eye{background:transparent;border:0;padding:4px;margin-left:6px;color:var(--brand);cursor:pointer;vertical-align:middle;line-height:0}
 .pill{display:inline-block;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:600;color:#241046}.h-Hot{background:#ffd2bf}.h-Warm{background:#fff2c9}.h-POOL{background:#ece4ff}
 .rem{margin:0;padding:6px 10px;min-width:170px}
+.brand{font-weight:700;font-size:20px;color:var(--brand);margin-bottom:16px}.brand i{font-style:normal;color:var(--ink)}
+.brand small,.logo small{display:block;font-size:11px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;opacity:.75}.logo b{display:block;line-height:1.1}
+.stats div{padding:18px 20px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:20px}
+.lead{background:var(--bg);border:1px solid var(--line);border-radius:18px;padding:22px;display:flex;flex-direction:column;gap:14px}
+.lead .top{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}
+.lead b{font-size:16px}.lead .mob{color:var(--mute);font-size:14px;margin-top:2px}
+.lead .amt{font-weight:700;font-size:18px;color:var(--brand);white-space:nowrap}
+.lead .meta{color:var(--mute);font-size:14px}
+.lead .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.lead select{width:auto;margin:0;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600}
+.lead .prom{font-size:14px;color:var(--mute)}.lead .prom select{width:100%;border-radius:12px;font-weight:500}
+.lead .rem{width:100%;min-width:0;margin-top:6px}
+.lead summary{cursor:pointer;color:var(--brand);font-size:14px;font-weight:600}
+.lead details[open] summary{margin-bottom:10px}
+.kv{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:5px 0}.kv span:first-child{color:var(--mute)}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -55,13 +71,13 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 <body>
 
 <section id="login" class="hide"><div class="box">
-  <h1>Hey, welcome back!</h1><p class="sub">Enter the access code Tonik gave you to see your leads.</p>
+  <div class="brand">Leads <i>Monitoring</i><small>by PurpleHub</small></div><h1>Hey, welcome back!</h1><p class="sub">Enter the access code Tonik gave you to see your leads.</p>
   <label>Access code<input id="code" autocomplete="off" autocapitalize="characters" placeholder="e.g. PRO5-1076-MC"></label>
   <p><button id="loginBtn">Let me in</button></p>
   <div id="loginMsg" class="msg err"></div></div></section>
 
 <div id="app" class="hide">
-  <header><div><b>Sales <i>Monitor</i></b></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
+  <header><div class="logo"><b>Leads <i>Monitoring</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
   <main>
     <section class="card hide" id="formCard">
       <h2>Add a customer lead</h2>
@@ -81,7 +97,7 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 
     <section class="card hide" id="uploadCard"><h2>Upload repeat-offer list</h2>
       <p class="msg">CSV columns: customer_name, finance_amount, merchant, store_name (optional: mobile, item). <a href="#" id="tpl">Download template</a></p>
-      <div class="bar"><input type="file" id="upFile" accept=".csv"><button id="upBtn">Upload leads</button></div><div id="upMsg" class="msg"></div></section>
+      <div class="bar"><select id="upRsm"></select><input type="file" id="upFile" accept=".csv"><button id="upBtn">Upload leads</button></div><div id="upMsg" class="msg"></div></section>
 
     <section class="card"><div class="stats" id="stats"></div></section>
 
@@ -94,7 +110,7 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
         <select id="fPro" class="hide"><option value="">All promoters</option></select>
         <button class="ghost" id="csv">Export CSV</button>
       </div>
-      <div class="tablewrap"><table><thead id="thead"></thead><tbody id="tbody"></tbody></table></div>
+      <div class="cards" id="list"></div>
       <div id="empty" class="msg">No leads yet. Add your first customer above.</div>
     </section>
   </main>
@@ -129,7 +145,7 @@ async function boot(){
   $("fStatus").innerHTML = '<option value="">All statuses</option>'+STATUSES.map(s=>`<option>${s}</option>`).join("");
   $("csv").classList.toggle("hide", me.role!=="HO");
   $("uploadCard").classList.toggle("hide", me.role!=="HO");
-  if(me.role==="PROMOTER") $("fHeat").querySelector('[value=POOL]').remove();
+  $("upRsm").innerHTML='<option value="">Assign batch to RSM…</option>'+profs.filter(p=>p.role==="RSM").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
   const showPro = me.role!=="PROMOTER";
   $("fPro").classList.toggle("hide",!showPro);
   if(showPro) $("fPro").innerHTML = '<option value="">All promoters</option>'+profs.filter(p=>p.role==="PROMOTER").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
@@ -152,20 +168,19 @@ function filtered(){
     (!q||[l.customer_name,l.item].join(" ").toLowerCase().includes(q)));
 }
 function render(){
-  const rows=filtered(), team=me.role!=="PROMOTER", ed=me.role==="TSM"||me.role==="PROMOTER", tag=me.role==="RSM"||me.role==="TSM";
+  const rows=filtered(), team=me.role!=="PROMOTER", ed=me.role==="TSM"||me.role==="PROMOTER", tag=me.role==="RSM"||me.role==="TSM", ho=me.role==="HO";
   const cnt=k=>rows.filter(l=>heat(l)===k).length;
-  const pros=Object.values(people).filter(p=>p.role==="PROMOTER");
-  const opts='<option value="">Tag to promoter…</option>'+pros.map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
+  const opts=(r,ph,sel)=>`<option value="">${ph}</option>`+Object.values(people).filter(p=>p.role===r).map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(p.full_name)}</option>`).join("");
   $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total finance amount<strong>${peso(rows.reduce((a,l)=>a+Number(l.loan_amount),0))}</strong></div><div>Hot leads<strong>${cnt("Hot")}</strong></div><div>Warm leads<strong>${cnt("Warm")}</strong></div>`+(team?`<div>Unassigned<strong>${cnt("POOL")}</strong></div>`:"");
-  $("thead").innerHTML="<tr><th>Date</th>"+(team?"<th>Promoter</th>":"")+"<th>Customer</th><th>Mobile</th><th>Item</th><th>Finance amount</th><th>Term</th><th>Merchant</th><th>Store</th><th>Heat</th><th>Status</th><th>Remarks</th></tr>";
-  $("tbody").innerHTML=rows.map(l=>{const c=(k,v)=>`<td data-label="${k}">${v}</td>`, h=heat(l), on=shown===l.id, own=ed&&l.promoter_id;
-    const prom=l.promoter_id?esc(people[l.promoter_id]?.full_name):(tag?`<select data-assign="${l.id}" aria-label="Tag to promoter">${opts}</select>`:"Unassigned");
-    const mob=l.mobile?(on?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"—";
-    return "<tr>"+c("Date",new Date(l.created_at).toLocaleDateString("en-PH"))+(team?c("Promoter",prom):"")+
-    c("Customer",on?"••••••••":esc(l.customer_name))+c("Mobile",mob)+c("Item",esc(l.item))+c("Finance amount",peso(l.loan_amount))+c("Term",l.term_months?l.term_months+" mo":"—")+c("Merchant",esc(l.location))+c("Store",esc(l.store_name))+
-    c("Heat",h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:"—")+
-    c("Status",own?`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`:`<span class="pill st-${l.status}">${l.status}</span>`)+
-    c("Remarks",own?`<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks">`:esc(l.remarks))+"</tr>";}).join("");
+  $("list").innerHTML=rows.map(l=>{const h=heat(l), on=shown===l.id, own=ed&&l.promoter_id, kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`;
+    const prom=l.promoter_id?(team?"Promoter: "+esc(people[l.promoter_id]?.full_name):""):ho?`<select data-rsm="${l.id}" aria-label="Assign to RSM">${opts("RSM","Assign to RSM…",l.rsm_id)}</select>`:tag?`<select data-assign="${l.id}" aria-label="Tag to promoter">${opts("PROMOTER","Tag to promoter…")}</select>`:"Not yet tagged to a promoter";
+    const mob=l.mobile?(on?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"No mobile number yet";
+    return `<article class="lead"><div class="top"><div><b>${on?"••••••••":esc(l.customer_name)}</b><div class="mob">${mob}</div></div><div class="amt">${peso(l.loan_amount)}</div></div>
+    <div class="meta">${esc(l.location)} · ${esc(l.store_name)}</div>
+    <div class="row">${h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:""}${own?`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`:`<span class="pill st-${l.status}">${l.status}</span>`}</div>
+    ${prom?`<div class="prom">${prom}</div>`:""}
+    <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}
+    ${own?`<label>Remarks<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks"></label>`:kv("Remarks",esc(l.remarks)||"—")}</details></article>`;}).join("");
   $("empty").classList.toggle("hide",rows.length>0);
   $("empty").textContent="No leads match.";
 }
@@ -189,17 +204,18 @@ $("saveBtn").onclick=async()=>{
   m.className="msg good"; m.textContent="Lead saved. Nice one!"; load();
 };
 
-$("tbody").addEventListener("click",e=>{
+$("list").addEventListener("click",e=>{
   const b=e.target.closest("[data-eye]"); if(!b) return;
   const id=Number(b.dataset.eye); shown=(shown===id)?null:id; clearTimeout(hideT);
   if(shown!==null) hideT=setTimeout(()=>{shown=null;render();},15000);
   render();
 });
-$("tbody").addEventListener("change",async e=>{
-  const d=e.target.dataset; let r;
-  if(d.id) r=await sb.from("leads").update({status:e.target.value}).eq("id",d.id);
-  else if(d.rem) r=await sb.from("leads").update({remarks:e.target.value.trim()}).eq("id",d.rem);
-  else if(d.assign){ if(!e.target.value) return; r=await sb.rpc("assign_lead",{p_lead:Number(d.assign),p_promoter:e.target.value}); }
+$("list").addEventListener("change",async e=>{
+  const d=e.target.dataset, v=e.target.value; let r;
+  if(d.rem){ r=await sb.from("leads").update({remarks:v.trim()}).eq("id",d.rem); if(r.error) alert(r.error.message); else{const x=leads.find(z=>z.id==d.rem); if(x) x.remarks=v.trim();} return; }
+  if(d.id) r=await sb.from("leads").update({status:v}).eq("id",d.id);
+  else if(d.assign){ if(!v) return; r=await sb.rpc("assign_lead",{p_lead:Number(d.assign),p_promoter:v}); }
+  else if(d.rsm){ if(!v) return; r=await sb.rpc("assign_to_rsm",{p_lead:Number(d.rsm),p_rsm:v}); }
   else return;
   if(r.error) alert(r.error.message); load();
 });
@@ -222,6 +238,7 @@ $("tpl").onclick=e=>{e.preventDefault();const a=document.createElement("a");a.hr
 $("upBtn").onclick=async()=>{
   const m=$("upMsg"), f=$("upFile").files[0]; m.className="msg err";
   if(!f){m.textContent="Choose a CSV file first.";return;}
+  if(!$("upRsm").value){m.textContent="Choose which RSM receives this batch.";return;}
   const t=parseCSV(await f.text()); if(t.length<2){m.textContent="The file has no rows.";return;}
   const A={customer_name:"customer_name",name:"customer_name",customer:"customer_name",finance_amount:"amount",amount:"amount",possible_finance_amount:"amount",merchant:"merchant",store_name:"store",store:"store",mobile:"mobile",mobile_number:"mobile",item:"item"};
   const idx={}; t[0].forEach((h,i)=>{const k=A[h.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_")]; if(k) idx[k]=i;});
@@ -231,8 +248,8 @@ $("upBtn").onclick=async()=>{
   t.slice(1).forEach((r,n)=>{const g=k=>(r[idx[k]]||"").trim(), amt=parseFloat(g("amount").replace(/,/g,"")), mer=MERCH.find(x=>x.toLowerCase()===g("merchant").toLowerCase()), mob=g("mobile").replace(/[\s-]/g,"");
     if(!g("customer_name")||!(amt>0)||!mer||!g("store")||(mob&&!/^(09|\+639)\d{9}$/.test(mob))) errs.push("Row "+(n+2)); else out.push({customer_name:g("customer_name"),loan_amount:amt,location:mer,store_name:g("store"),mobile:mob,item:g("item")});});
   if(errs.length){m.textContent=errs.length+" row(s) need fixing ("+errs.slice(0,8).join(", ")+"). Check name, amount, merchant spelling, store and mobile. Nothing was uploaded.";return;}
-  let total=0; for(let i=0;i<out.length;i+=500){const {data,error}=await sb.rpc("upload_leads",{rows:out.slice(i,i+500)}); if(error){m.textContent=error.message;return;} total+=data;}
-  m.className="msg good"; m.textContent=total+" lead(s) uploaded. RSM and TSM can now tag them to promoters."; $("upFile").value=""; load();
+  let total=0; for(let i=0;i<out.length;i+=500){const {data,error}=await sb.rpc("upload_leads",{rows:out.slice(i,i+500),p_rsm:$("upRsm").value}); if(error){m.textContent=error.message;return;} total+=data;}
+  m.className="msg good"; m.textContent=total+" lead(s) uploaded. The RSM and their team can see them, and can tag them to promoters."; $("upFile").value=""; load();
 };
 
 boot();
