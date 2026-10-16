@@ -59,6 +59,18 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 .lead summary{cursor:pointer;color:var(--brand);font-size:14px;font-weight:600}
 .lead details[open] summary{margin-bottom:10px}
 .kv{display:flex;justify-content:space-between;gap:12px;font-size:14px;padding:5px 0}.kv span:first-child{color:var(--mute)}
+.tabs{display:flex;gap:10px;margin-bottom:24px}
+.tab{background:rgba(255,255,255,.16);color:#fff;padding:11px 26px}.tab.on{background:var(--pop);color:var(--deep)}
+.lead.appr{background:rgba(70,209,155,.18);border:2px solid var(--ok)}.callout{font-weight:700;color:var(--ok)}
+.lead.dup{border:2px solid var(--bad)}.flagbar{background:rgba(196,55,47,.12);border:1px solid var(--bad);color:var(--bad);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:600}
+button.danger{background:transparent;color:var(--bad);border:1.5px solid var(--bad);padding:8px 16px;font-size:13px;align-self:flex-start}
+.fn{margin-bottom:18px}.fnh{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;margin-bottom:6px}
+.fnb{background:var(--bg);border-radius:999px;height:14px;overflow:hidden}.fnb i{display:block;height:100%;border-radius:999px}
+dialog{border:0;border-radius:24px;padding:28px;max-width:860px;width:calc(100% - 32px);max-height:88vh;background:var(--card);color:var(--ink)}
+dialog::backdrop{background:rgba(20,8,50,.6)}
+.dg{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:16px}
+.dr{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--line);font-size:14px;margin-top:10px}
+.sub{color:var(--mute)}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -79,6 +91,8 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 <div id="app" class="hide">
   <header><div class="logo"><b>Leads <i>Monitoring</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
   <main>
+    <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" data-tab="dash">Dashboard</button></nav>
+    <div id="tabLeads">
     <section class="card hide" id="formCard">
       <h2>Add a customer lead</h2>
       <div class="grid">
@@ -110,22 +124,27 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
         <select id="fHeat"><option value="">All leads</option><option value="HW">Hot &amp; Warm</option><option value="Hot">Hot only</option><option value="Warm">Warm only</option><option value="POOL">Unassigned</option></select>
         <select id="fStatus"><option value="">All statuses</option></select>
         <select id="fPro" class="hide"><option value="">All promoters</option></select>
+        <button class="ghost hide" id="dupBtn">Find duplicates</button>
         <button class="ghost" id="csv">Export CSV</button>
       </div>
       <div class="cards" id="list"></div>
       <div id="empty" class="msg">No leads yet. Add your first customer above.</div>
     </section>
+    </div>
+    <div id="tabDash" class="hide"></div>
   </main>
 </div>
+
+<dialog id="dupDlg"><div id="dupBody"></div><p><button id="dupClose">Close</button></p></dialog>
 
 <script>
 // ====== CONFIGURE THESE (Supabase > Project Settings > API) ======
 const SUPABASE_URL = "https://wxflqiswoifwpyxjtgis.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4ZmxxaXN3b2lmd3B5eGp0Z2lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNDA1ODAsImV4cCI6MjEwNzcxNjU4MH0.isva0tkzWyc_XSZQhYoXIxrymKB_24gIrIFQZSqzpCE";   // the anon key is safe to publish; RLS protects the data
 // =================================================================
-const STATUSES = ["New","Contacted","Applied","Approved","Declined","Disbursed"];
+const STATUSES = ["New","Contacted","Approved","Declined","Disbursed"];
 const ROLE_NAME = {HO:"Head Office",RSM:"Regional Sales Manager",TSM:"Territory Sales Manager",PROMOTER:"Promoter"};
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,{auth:{storage:window.sessionStorage,persistSession:true,autoRefreshToken:true}});
 const $ = id => document.getElementById(id);
 let me, people = {}, leads = [], shown = null, hideT;
 const EYE='<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -135,7 +154,7 @@ const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">
 
 async function boot(){
   const {data:{session}} = await sb.auth.getSession();
-  if(!session){ $("login").classList.remove("hide"); $("app").classList.add("hide"); return; }
+  if(!session){ $("loginMsg").textContent=sessionStorage.getItem("idleMsg")?"You were signed out after 4 minutes of inactivity. Please log in again.":""; sessionStorage.removeItem("idleMsg"); $("login").classList.remove("hide"); $("app").classList.add("hide"); return; }
   const {data:profs,error} = await sb.from("profiles").select("*");
   if(error||!profs.length){ await sb.auth.signOut(); $("loginMsg").textContent="No profile set up for this account. Contact Head Office."; $("login").classList.remove("hide"); return; }
   people = Object.fromEntries(profs.map(p=>[p.id,p]));
@@ -146,6 +165,8 @@ async function boot(){
   $("listTitle").textContent = me.role==="PROMOTER" ? "My leads" : me.role==="HO" ? "All leads" : "Leads in my team";
   $("fStatus").innerHTML = '<option value="">All statuses</option>'+STATUSES.map(s=>`<option>${s}</option>`).join("");
   $("csv").classList.toggle("hide", me.role!=="HO");
+  $("tabs").classList.toggle("hide", me.role==="PROMOTER");
+  $("dupBtn").classList.toggle("hide", !["HO","RSM"].includes(me.role));
   $("uploadCard").classList.toggle("hide", me.role!=="HO");
   $("upRsm").innerHTML='<option value="">Assign batch to RSM…</option>'+profs.filter(p=>p.role==="RSM").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
   const showPro = me.role!=="PROMOTER";
@@ -171,21 +192,23 @@ function filtered(){
     (!q||[l.customer_name,l.item].join(" ").toLowerCase().includes(q)));
 }
 function render(){
-  const rows=filtered(), team=me.role!=="PROMOTER", ed=me.role==="TSM"||me.role==="PROMOTER", tag=me.role==="RSM"||me.role==="TSM", ho=me.role==="HO";
+  const rows=filtered().sort((a,b)=>(b.status==="Approved")-(a.status==="Approved")), team=me.role!=="PROMOTER", ed=me.role==="TSM"||me.role==="PROMOTER", tag=me.role==="RSM"||me.role==="TSM", ho=me.role==="HO";
   const cnt=k=>rows.filter(l=>heat(l)===k).length;
   const opts=(r,ph,sel)=>`<option value="">${ph}</option>`+Object.values(people).filter(p=>p.role===r).map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(p.full_name)}</option>`).join("");
-  $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total finance amount<strong>${peso(rows.reduce((a,l)=>a+Number(l.loan_amount),0))}</strong></div><div>Hot leads<strong>${cnt("Hot")}</strong></div><div>Warm leads<strong>${cnt("Warm")}</strong></div>`+(team?`<div>Unassigned<strong>${cnt("POOL")}</strong></div>`:"");
+  const sumA=a=>a.reduce((t,l)=>t+Number(l.loan_amount),0);
+  $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total Finance Amount (Disbursed)<strong>${peso(sumA(rows.filter(l=>l.status==="Disbursed")))}</strong></div><div>Untapped Finance Amount<strong>${peso(sumA(rows.filter(l=>!CLOSED.includes(l.status))))}</strong></div><div>Hot leads<strong>${cnt("Hot")}</strong></div><div>Warm leads<strong>${cnt("Warm")}</strong></div>`+(team?`<div>Unassigned<strong>${cnt("POOL")}</strong></div>`:"");
   $("list").innerHTML=rows.map(l=>{const h=heat(l), on=shown===l.id, own=ed&&l.promoter_id, kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`;
     const prom=l.promoter_id?(team?"Promoter: "+esc(people[l.promoter_id]?.full_name):""):ho?`<select data-rsm="${l.id}" aria-label="Assign to RSM">${opts("RSM","Assign to RSM…",l.rsm_id)}</select>`:tag?`<select data-assign="${l.id}" aria-label="Tag to promoter">${opts("PROMOTER","Tag to promoter…")}</select>`:"Not yet tagged to a promoter";
     const mob=l.mobile?(on?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"No mobile number yet";
-    return `<article class="lead"><div class="top"><div><b>${on?"••••••••":esc(l.customer_name)}</b><div class="mob">${mob}</div></div><div class="amt">${peso(l.loan_amount)}</div></div>
+    return `<article class="lead${l.status==="Approved"?" appr":""}${l.dup_flag?" dup":""}">${l.status==="Approved"?'<div class="callout">Approved — please call the client</div>':""}${l.dup_flag?'<div class="flagbar">Flagged as duplicate — please remove this lead.'+(l.dup_note?" Note: "+esc(l.dup_note):"")+"</div>":""}<div class="top"><div><b>${on?"••••••••":esc(l.customer_name)}</b><div class="mob">${mob}</div></div><div class="amt">${peso(l.loan_amount)}</div></div>
     <div class="meta">${esc(l.location)} · ${esc(l.store_name)}</div>
     <div class="row">${h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:""}${own?`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`:`<span class="pill st-${l.status}">${l.status}</span>`}</div>
     ${prom?`<div class="prom">${prom}</div>`:""}
     <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Source",esc(srcText(l))||"—")}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}
-    ${own?`<label>Remarks<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks"></label>`:kv("Remarks",esc(l.remarks)||"—")}</details></article>`;}).join("");
+    ${own?`<label>Remarks<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks"></label>`:kv("Remarks",esc(l.remarks)||"—")}</details>${(me.role==="RSM"||me.role==="TSM")?`<button class="danger" data-del="${l.id}">Delete lead</button>`:(me.role==="PROMOTER"&&l.dup_flag?`<button class="danger" data-del="${l.id}">Remove duplicate</button>`:"")}</article>`;}).join("");
   $("empty").classList.toggle("hide",rows.length>0);
   $("empty").textContent="No leads match.";
+  if(!$("tabDash").classList.contains("hide")) renderDash();
 }
 
 $("loginBtn").onclick=async()=>{
@@ -255,6 +278,47 @@ $("upBtn").onclick=async()=>{
   let total=0; for(let i=0;i<out.length;i+=500){const {data,error}=await sb.rpc("upload_leads",{rows:out.slice(i,i+500),p_rsm:$("upRsm").value}); if(error){m.textContent=error.message;return;} total+=data;}
   m.className="msg good"; m.textContent=total+" lead(s) uploaded. The RSM and their team can see them, and can tag them to promoters."; $("upFile").value=""; load();
 };
+
+function renderDash(){
+  const L=leads, sum=a=>a.reduce((t,l)=>t+Number(l.loan_amount),0), f=x=>L.filter(l=>x.includes(l.status)), tot=sum(L), pct=a=>tot?Math.round(sum(a)/tot*100):0;
+  const stages=[["Rejected (Declined)",f(["Declined"]),"var(--bad)"],["Approved, not yet booked",f(["Approved"]),"var(--ok)"],["Booked (Disbursed)",f(["Disbursed"]),"var(--brand)"],["Potential for call-out (New / Contacted)",f(["New","Contacted"]),"#e0a100"]];
+  const tile=(k,v)=>`<div>${k}<strong>${v}</strong></div>`;
+  const fn=(name,a,c,w)=>`<div class="fn"><div class="fnh"><span>${name}</span><span>${a.length} lead(s) · ${peso(sum(a))}${w===undefined?"":" · "+w+"%"}</span></div><div class="fnb"><i style="width:${Math.max(w??100,3)}%;background:${c}"></i></div></div>`;
+  const pros=Object.values(people).filter(p=>p.role==="PROMOTER").map(p=>{const a=L.filter(l=>l.promoter_id===p.id);return{n:p.full_name,c:a.length,amt:sum(a),ok:a.filter(l=>l.status==="Approved").length,bk:a.filter(l=>l.status==="Disbursed").length};}).sort((a,b)=>b.c-a.c||b.amt-a.amt);
+  const mx=Math.max(1,...pros.map(p=>p.c));
+  $("tabDash").innerHTML=`<section class="card"><h2>Overview</h2><div class="stats">${tile("New leads",f(["New"]).length)}${tile("Total leads",L.length)}${tile("Total possible finance amount",peso(tot))}${tile("Booked amount",peso(sum(f(["Disbursed"]))))}</div></section>
+  <section class="card"><h2>Funnel: what happened to the possible finance amount</h2>${fn("All leads (total possible finance amount)",L,"var(--mute)")}${stages.map(x=>fn(x[0],x[1],x[2],pct(x[1]))).join("")}</section>
+  <section class="card"><h2>Promoter lead input</h2>${pros.length?pros.map((p,i)=>`<div class="fn"><div class="fnh"><span>${i+1}. ${esc(p.n)}</span><span>${p.c} lead(s) · ${peso(p.amt)} · ${p.ok} approved · ${p.bk} booked</span></div><div class="fnb"><i style="width:${p.c?Math.max(p.c/mx*100,3):0}%;background:var(--brand)"></i></div></div>`).join(""):"No promoters yet."}</section>`;
+}
+$("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return;
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); const d=b.dataset.tab==="dash";
+  $("tabLeads").classList.toggle("hide",d); $("tabDash").classList.toggle("hide",!d); if(d) renderDash();});
+
+function showDup(){
+  const g={}; leads.forEach(l=>{const k=l.customer_name.trim().replace(/\s+/g," ").toLowerCase(); (g[k]=g[k]||[]).push(l);});
+  const groups=Object.values(g).filter(a=>a.length>1).map(a=>a.sort((x,y)=>new Date(x.created_at)-new Date(y.created_at)));
+  const tsmOf=l=>{const p=people[l.promoter_id], t=p&&people[p.manager_id]; return t?t.full_name:"—";};
+  $("dupBody").innerHTML=`<h2>Duplicate names (exact match)</h2><p class="msg">${groups.length?groups.length+" name(s) appear more than once. The earliest entry is the 1st touch. Flag the others so the TSM or promoter removes them.":"No duplicates found."}</p>`+
+   groups.map(a=>`<div class="dg"><b>${esc(a[0].customer_name)}</b> · ${a.length} entries`+a.map((l,i)=>`<div class="dr"><div>${i===0?'<span class="pill h-Warm">1st touch</span> ':""}${esc(people[l.promoter_id]?.full_name||"Unassigned")} · TSM: ${esc(tsmOf(l))}<br><span class="sub">${new Date(l.created_at).toLocaleDateString("en-PH")} · ${esc(l.location)} · ${esc(l.store_name)} · ${l.status}</span></div><div>${l.dup_flag?`<button class="ghost" data-unflag="${l.id}">Flagged · Undo</button>`:`<button data-flag="${l.id}">Flag as duplicate</button>`}</div></div>`).join("")+"</div>").join("");
+  if(!$("dupDlg").open) $("dupDlg").showModal();
+}
+$("dupBtn").onclick=showDup; $("dupClose").onclick=()=>$("dupDlg").close();
+$("dupBody").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-flag],[data-unflag]"); if(!b) return;
+  const on=!!b.dataset.flag, id=Number(b.dataset.flag||b.dataset.unflag); let note=null;
+  if(on){ note=prompt("Note for the TSM / promoter (optional):"); if(note===null) return; }
+  const {error}=await sb.rpc("flag_duplicate",{p_lead:id,p_flag:on,p_note:note}); if(error){alert(error.message);return;}
+  await load(); showDup();
+});
+$("list").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-del]"); if(!b) return;
+  if(!confirm("Delete this lead permanently? This cannot be undone.")) return;
+  const {error}=await sb.rpc("delete_lead",{p_lead:Number(b.dataset.del)}); if(error) alert(error.message); load();
+});
+
+let lastAct=Date.now();
+["mousemove","keydown","click","touchstart","scroll"].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now();},{passive:true}));
+setInterval(async()=>{ if(me&&Date.now()-lastAct>240000){ me=null; await sb.auth.signOut(); sessionStorage.setItem("idleMsg","1"); location.reload(); } },5000);
 
 boot();
 </script>
