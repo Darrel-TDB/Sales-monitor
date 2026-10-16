@@ -41,6 +41,8 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
 #loginBtn{width:100%;background:var(--pop);color:var(--deep);font-weight:700}
 .msg{font-size:13px;margin-top:8px;min-height:18px}.err{color:var(--bad)}.good{color:var(--ok)}
 .eye{background:transparent;border:0;padding:4px;margin-left:6px;color:var(--brand);cursor:pointer;vertical-align:middle;line-height:0}
+.pill{display:inline-block;padding:4px 12px;border-radius:999px;font-size:13px;font-weight:600;color:#241046}.h-Hot{background:#ffd2bf}.h-Warm{background:#fff2c9}.h-POOL{background:#ece4ff}
+.rem{margin:0;padding:6px 10px;min-width:170px}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -77,12 +79,17 @@ td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:6
       <div id="formMsg" class="msg"></div>
     </section>
 
+    <section class="card hide" id="uploadCard"><h2>Upload repeat-offer list</h2>
+      <p class="msg">CSV columns: customer_name, finance_amount, merchant, store_name (optional: mobile, item). <a href="#" id="tpl">Download template</a></p>
+      <div class="bar"><input type="file" id="upFile" accept=".csv"><button id="upBtn">Upload leads</button></div><div id="upMsg" class="msg"></div></section>
+
     <section class="card"><div class="stats" id="stats"></div></section>
 
     <section class="card">
       <h2 id="listTitle">Leads</h2>
       <div class="bar">
         <input id="q" placeholder="Search customer or item">
+        <select id="fHeat"><option value="">All leads</option><option value="HW">Hot &amp; Warm</option><option value="Hot">Hot only</option><option value="Warm">Warm only</option><option value="POOL">Unassigned</option></select>
         <select id="fStatus"><option value="">All statuses</option></select>
         <select id="fPro" class="hide"><option value="">All promoters</option></select>
         <button class="ghost" id="csv">Export CSV</button>
@@ -121,6 +128,8 @@ async function boot(){
   $("listTitle").textContent = me.role==="PROMOTER" ? "My leads" : me.role==="HO" ? "All leads" : "Leads in my team";
   $("fStatus").innerHTML = '<option value="">All statuses</option>'+STATUSES.map(s=>`<option>${s}</option>`).join("");
   $("csv").classList.toggle("hide", me.role!=="HO");
+  $("uploadCard").classList.toggle("hide", me.role!=="HO");
+  if(me.role==="PROMOTER") $("fHeat").querySelector('[value=POOL]').remove();
   const showPro = me.role!=="PROMOTER";
   $("fPro").classList.toggle("hide",!showPro);
   if(showPro) $("fPro").innerHTML = '<option value="">All promoters</option>'+profs.filter(p=>p.role==="PROMOTER").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
@@ -133,21 +142,30 @@ async function load(){
   leads = data; render();
 }
 
+const CLOSED=["Declined","Disbursed"], MERCH=["Asian Home Appliance","FC Home","Home Along","Robinsons Appliance"];
+function heat(l){ if(!l.promoter_id) return "POOL"; if(CLOSED.includes(l.status)) return "";
+  const d=(Date.now()-new Date(l.assigned_at||l.created_at))/864e5; return d<=5?"Hot":d<=14?"Warm":""; }
 function filtered(){
-  const q=$("q").value.toLowerCase(), st=$("fStatus").value, pr=$("fPro").value;
+  const q=$("q").value.toLowerCase(), st=$("fStatus").value, pr=$("fPro").value, ht=$("fHeat").value;
   return leads.filter(l=>(!st||l.status===st)&&(!pr||l.promoter_id===pr)&&
+    (!ht||(ht==="HW"?["Hot","Warm"].includes(heat(l)):heat(l)===ht))&&
     (!q||[l.customer_name,l.item].join(" ").toLowerCase().includes(q)));
 }
-
 function render(){
-  const rows=filtered(), team=me.role!=="PROMOTER";
-  const approved=rows.filter(l=>["Approved","Disbursed"].includes(l.status));
-  $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total finance amount<strong>${peso(rows.reduce((a,l)=>a+Number(l.loan_amount),0))}</strong></div><div>Approved / disbursed<strong>${approved.length}</strong></div>`;
-  $("thead").innerHTML="<tr><th>Date</th>"+(team?"<th>Promoter</th>":"")+"<th>Customer</th><th>Mobile</th><th>Item</th><th>Finance amount</th><th>Term</th><th>Merchant</th><th>Store</th><th>Status</th><th>Remarks</th></tr>";
-  $("tbody").innerHTML=rows.map(l=>{const c=(k,v)=>`<td data-label="${k}">${v}</td>`;
-    return "<tr>"+c("Date",new Date(l.created_at).toLocaleDateString("en-PH"))+(team?c("Promoter",esc(people[l.promoter_id]?.full_name)):"")+
-    c("Customer",shown===l.id?"••••••••":esc(l.customer_name))+c("Mobile",(shown===l.id?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${shown===l.id?"Hide":"Show"} mobile number">${shown===l.id?EYEOFF:EYE}</button>`)+c("Item",esc(l.item))+c("Finance amount",peso(l.loan_amount))+c("Term",(l.term_months||"")+" mo")+c("Merchant",esc(l.location))+c("Store",esc(l.store_name))+
-    c("Status",`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`)+c("Remarks",esc(l.remarks))+"</tr>";}).join("");
+  const rows=filtered(), team=me.role!=="PROMOTER", ed=me.role==="TSM"||me.role==="PROMOTER", tag=me.role==="RSM"||me.role==="TSM";
+  const cnt=k=>rows.filter(l=>heat(l)===k).length;
+  const pros=Object.values(people).filter(p=>p.role==="PROMOTER");
+  const opts='<option value="">Tag to promoter…</option>'+pros.map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
+  $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total finance amount<strong>${peso(rows.reduce((a,l)=>a+Number(l.loan_amount),0))}</strong></div><div>Hot leads<strong>${cnt("Hot")}</strong></div><div>Warm leads<strong>${cnt("Warm")}</strong></div>`+(team?`<div>Unassigned<strong>${cnt("POOL")}</strong></div>`:"");
+  $("thead").innerHTML="<tr><th>Date</th>"+(team?"<th>Promoter</th>":"")+"<th>Customer</th><th>Mobile</th><th>Item</th><th>Finance amount</th><th>Term</th><th>Merchant</th><th>Store</th><th>Heat</th><th>Status</th><th>Remarks</th></tr>";
+  $("tbody").innerHTML=rows.map(l=>{const c=(k,v)=>`<td data-label="${k}">${v}</td>`, h=heat(l), on=shown===l.id, own=ed&&l.promoter_id;
+    const prom=l.promoter_id?esc(people[l.promoter_id]?.full_name):(tag?`<select data-assign="${l.id}" aria-label="Tag to promoter">${opts}</select>`:"Unassigned");
+    const mob=l.mobile?(on?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"—";
+    return "<tr>"+c("Date",new Date(l.created_at).toLocaleDateString("en-PH"))+(team?c("Promoter",prom):"")+
+    c("Customer",on?"••••••••":esc(l.customer_name))+c("Mobile",mob)+c("Item",esc(l.item))+c("Finance amount",peso(l.loan_amount))+c("Term",l.term_months?l.term_months+" mo":"—")+c("Merchant",esc(l.location))+c("Store",esc(l.store_name))+
+    c("Heat",h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:"—")+
+    c("Status",own?`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`:`<span class="pill st-${l.status}">${l.status}</span>`)+
+    c("Remarks",own?`<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks">`:esc(l.remarks))+"</tr>";}).join("");
   $("empty").classList.toggle("hide",rows.length>0);
   $("empty").textContent="No leads match.";
 }
@@ -178,15 +196,43 @@ $("tbody").addEventListener("click",e=>{
   render();
 });
 $("tbody").addEventListener("change",async e=>{
-  if(e.target.dataset.id){ const {error}=await sb.from("leads").update({status:e.target.value}).eq("id",e.target.dataset.id); if(error) alert(error.message); load(); }
+  const d=e.target.dataset; let r;
+  if(d.id) r=await sb.from("leads").update({status:e.target.value}).eq("id",d.id);
+  else if(d.rem) r=await sb.from("leads").update({remarks:e.target.value.trim()}).eq("id",d.rem);
+  else if(d.assign){ if(!e.target.value) return; r=await sb.rpc("assign_lead",{p_lead:Number(d.assign),p_promoter:e.target.value}); }
+  else return;
+  if(r.error) alert(r.error.message); load();
 });
-["q","fStatus","fPro"].forEach(i=>$(i).addEventListener("input",render));
+["q","fStatus","fPro","fHeat"].forEach(i=>$(i).addEventListener("input",render));
 
 $("csv").onclick=()=>{
   if(!me||me.role!=="HO") return;
   const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Status","Remarks"];
   const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,l.status,l.remarks].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([[head.join(","),...lines].join("\n")],{type:"text/csv"})); a.download="leads.csv"; a.click();
+};
+
+function parseCSV(t){const r=[];let row=[],f="",q=false;t=t.replace(/^\uFEFF/,"");
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c=='"'){if(t[i+1]=='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c=='"')q=true; else if(c==","){row.push(f);f=""}
+    else if(c=="\n"||c=="\r"){if(c=="\r"&&t[i+1]=="\n")i++;row.push(f);f="";if(row.some(x=>x.trim()))r.push(row);row=[]} else f+=c}
+  row.push(f);if(row.some(x=>x.trim()))r.push(row);return r;}
+$("tpl").onclick=e=>{e.preventDefault();const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["customer_name,finance_amount,merchant,store_name,mobile\nJuan Dela Cruz,25000,Asian Home Appliance,SM North,\n"],{type:"text/csv"}));a.download="repeat-offer-template.csv";a.click();};
+$("upBtn").onclick=async()=>{
+  const m=$("upMsg"), f=$("upFile").files[0]; m.className="msg err";
+  if(!f){m.textContent="Choose a CSV file first.";return;}
+  const t=parseCSV(await f.text()); if(t.length<2){m.textContent="The file has no rows.";return;}
+  const A={customer_name:"customer_name",name:"customer_name",customer:"customer_name",finance_amount:"amount",amount:"amount",possible_finance_amount:"amount",merchant:"merchant",store_name:"store",store:"store",mobile:"mobile",mobile_number:"mobile",item:"item"};
+  const idx={}; t[0].forEach((h,i)=>{const k=A[h.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_")]; if(k) idx[k]=i;});
+  const miss=["customer_name","amount","merchant","store"].filter(k=>!(k in idx));
+  if(miss.length){m.textContent="Missing column(s): "+miss.join(", ");return;}
+  const out=[],errs=[];
+  t.slice(1).forEach((r,n)=>{const g=k=>(r[idx[k]]||"").trim(), amt=parseFloat(g("amount").replace(/,/g,"")), mer=MERCH.find(x=>x.toLowerCase()===g("merchant").toLowerCase()), mob=g("mobile").replace(/[\s-]/g,"");
+    if(!g("customer_name")||!(amt>0)||!mer||!g("store")||(mob&&!/^(09|\+639)\d{9}$/.test(mob))) errs.push("Row "+(n+2)); else out.push({customer_name:g("customer_name"),loan_amount:amt,location:mer,store_name:g("store"),mobile:mob,item:g("item")});});
+  if(errs.length){m.textContent=errs.length+" row(s) need fixing ("+errs.slice(0,8).join(", ")+"). Check name, amount, merchant spelling, store and mobile. Nothing was uploaded.";return;}
+  let total=0; for(let i=0;i<out.length;i+=500){const {data,error}=await sb.rpc("upload_leads",{rows:out.slice(i,i+500)}); if(error){m.textContent=error.message;return;} total+=data;}
+  m.className="msg good"; m.textContent=total+" lead(s) uploaded. RSM and TSM can now tag them to promoters."; $("upFile").value=""; load();
 };
 
 boot();
