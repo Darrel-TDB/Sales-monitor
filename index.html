@@ -108,7 +108,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 <div id="app" class="hide">
   <header><div class="logo"><b>Leads <i>Monitoring</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
   <main>
-    <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" data-tab="dash">Dashboard</button><button class="tab hide" id="tabReqBtn" data-tab="req">Access requests<span id="reqBadge"></span></button></nav>
+    <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" data-tab="dash">Dashboard</button><button class="tab hide" id="tabReqBtn" data-tab="req">Access requests<span id="reqBadge"></span></button><button class="tab hide" id="tabChgBtn" data-tab="chg">Team changes<span id="chgBadge"></span></button></nav>
     <div id="tabLeads">
     <section class="card hide" id="formCard">
       <h2>Add a customer lead</h2>
@@ -153,9 +153,11 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
     <div id="tabDash" class="hide"></div>
     <div id="tabAdmin" class="hide"></div>
     <div id="tabReq" class="hide"></div>
+    <div id="tabChg" class="hide"></div>
   </main>
 </div>
 
+<dialog id="reasonDlg"><h2>Reason for disabling</h2><p class="msg" id="rsnFor"></p><label>Reason<select id="rsn"><option>Resigned</option><option>Terminated</option><option>End of contract</option><option>Promoted</option><option>On leave</option><option>Other</option></select></label><p class="msg">Resigned, Terminated, End of contract and Promoted close the access for good. On leave and Other can be switched back on.</p><p><button id="rsnOk">Disable</button> <button class="ghost" id="rsnNo">Cancel</button></p></dialog>
 <dialog id="histDlg"><div id="histBody"></div><p><button id="histClose">Close</button></p></dialog>
 <dialog id="dupDlg"><div id="dupBody"></div><p><button id="dupClose">Close</button></p></dialog>
 
@@ -196,12 +198,13 @@ async function boot(){
   const showPro = me.role!=="PROMOTER";
   $("fPro").classList.toggle("hide",!showPro);
   if(showPro) $("fPro").innerHTML = '<option value="">All promoters</option>'+profs.filter(p=>p.role==="PROMOTER").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
+  if(["HO","RSM","TSM"].includes(me.role)){ STRUCT=(await sb.rpc("my_structure")).data||[]; }
   if(["HO","RSM"].includes(me.role)){ $("fTsm").classList.remove("hide"); fillTsm(); }
-  if(me.role==="HO"){ $("fRsm").classList.remove("hide"); $("fRsm").innerHTML='<option value="">All RSMs</option>'+profs.filter(p=>p.role==="RSM").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join(""); }
-  if(["RSM","HO"].includes(me.role)){ $("tabReqBtn").classList.remove("hide"); loadReq(); }
+  if(me.role==="HO"){ $("fRsm").classList.remove("hide"); $("fRsm").innerHTML='<option value="">All RSMs</option>'+[...new Map(STRUCT.filter(x=>x.region_id).map(x=>[x.region_id,x])).values()].map(x=>`<option value="${x.region_id}">${esc(x.region_name)} (${esc(x.rsm_name||"Vacant")})</option>`).join(""); }
+  if(["RSM","HO"].includes(me.role)){ $("tabReqBtn").classList.remove("hide"); loadReq(); $("tabChgBtn").classList.remove("hide"); initChg(); loadChg(); }
   await load();
 }
-function fillTsm(){ const r=$("fRsm").value; $("fTsm").innerHTML='<option value="">All TSMs</option>'+Object.values(people).filter(p=>p.role==="TSM"&&(!r||p.manager_id===r)).map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join(""); }
+function fillTsm(){ const r=$("fRsm").value; $("fTsm").innerHTML='<option value="">All TSMs</option>'+STRUCT.filter(x=>x.territory_id&&(!r||x.region_id===r)).map(x=>`<option value="${x.territory_id}">${esc(x.territory_name)} (${esc(x.tsm_name||"Vacant")})</option>`).join(""); }
 
 async function load(){
   const {data,error} = await sb.from("leads").select("*").order("created_at",{ascending:false});
@@ -215,8 +218,7 @@ function heat(l){ if(!l.promoter_id) return "POOL"; if(CLOSED.includes(l.status)
   const d=(Date.now()-new Date(l.assigned_at||l.created_at))/864e5; return d<=5?"Hot":d<=14?"Warm":""; }
 function filtered(){
   const q=$("q").value.toLowerCase(), st=$("fStatus").value, pr=$("fPro").value, ht=$("fHeat").value, rs=$("fRsm").value, ts=$("fTsm").value;
-  const tsmOf=l=>people[l.promoter_id]?.manager_id, rsmOf=l=>l.promoter_id?people[tsmOf(l)]?.manager_id:l.rsm_id;
-  return leads.filter(l=>(!st||l.status===st)&&(!pr||l.promoter_id===pr)&&(!rs||rsmOf(l)===rs)&&(!ts||tsmOf(l)===ts)&&
+  return leads.filter(l=>(!st||l.status===st)&&(!pr||l.promoter_id===pr)&&(!rs||l.region_id===rs)&&(!ts||l.territory_id===ts)&&
     (!ht||(ht==="HW"?["Hot","Warm"].includes(heat(l)):heat(l)===ht))&&
     (!q||[l.customer_name,l.item].join(" ").toLowerCase().includes(q)));
 }
@@ -227,7 +229,8 @@ function render(){
   const sumA=a=>a.reduce((t,l)=>t+Number(l.loan_amount),0);
   $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total Finance Amount (Disbursed)<strong>${peso(sumA(rows.filter(l=>l.status==="Disbursed")))}</strong></div><div>Untapped Finance Amount<strong>${peso(sumA(rows.filter(l=>!CLOSED.includes(l.status))))}</strong></div><div>Hot leads<strong>${cnt("Hot")}</strong></div><div>Warm leads<strong>${cnt("Warm")}</strong></div>`+(team?`<div>Unassigned<strong>${cnt("POOL")}</strong></div>`:"");
   $("list").innerHTML=rows.map(l=>{const h=heat(l), on=shown===l.id, own=ed&&l.promoter_id, kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`;
-    const prom=l.promoter_id?(team?"Promoter: "+esc(people[l.promoter_id]?.full_name):""):ho?`<select data-rsm="${l.id}" aria-label="Assign to RSM">${opts("RSM","Assign to RSM…",l.rsm_id)}</select>`:tag?`<select data-assign="${l.id}" aria-label="Tag to promoter">${opts("PROMOTER","Tag to promoter…")}</select>`:"Not yet tagged to a promoter";
+    const pp=people[l.promoter_id], orph=tag&&l.promoter_id&&pp&&(pp.status!=="ACTIVE"||pp.territory_id!==l.territory_id)&&!CLOSED.includes(l.status);
+    const prom=l.promoter_id?(team?"Promoter: "+esc(pp?.full_name)+(orph?` · no longer in this territory <select data-retag="${l.id}" aria-label="Re-tag to promoter">${retagOpts(l)}</select>`:""):""):ho?`<select data-rsm="${l.id}" aria-label="Assign to RSM">${opts("RSM","Assign to RSM…",l.rsm_id)}</select>`:tag?`<select data-assign="${l.id}" aria-label="Tag to promoter">${opts("PROMOTER","Tag to promoter…")}</select>`:"Not yet tagged to a promoter";
     const mob=l.mobile?(on?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"No mobile number yet";
     return `<article class="lead${l.status==="Approved"?" appr":""}${l.dup_flag?" dup":""}">${l.status==="Approved"?'<div class="callout">Approved — please call the client</div>':""}${l.dup_flag?'<div class="flagbar">Flagged as duplicate — please remove this lead.'+(l.dup_note?" Note: "+esc(l.dup_note):"")+"</div>":""}<div class="top"><div><b>${on?"••••••••":esc(l.customer_name)}</b><div class="mob">${mob}</div></div><div class="amt">${peso(l.loan_amount)}</div></div>
     <div class="meta">${esc(l.location)} · ${esc(l.store_name)}</div>
@@ -276,6 +279,7 @@ $("list").addEventListener("change",async e=>{
   if(d.id) r=await sb.from("leads").update({status:v}).eq("id",d.id);
   else if(d.assign){ if(!v) return; r=await sb.rpc("assign_lead",{p_lead:Number(d.assign),p_promoter:v}); }
   else if(d.rsm){ if(!v) return; r=await sb.rpc("assign_to_rsm",{p_lead:Number(d.rsm),p_rsm:v}); }
+  else if(d.retag){ if(!v) return; r=await sb.rpc("retag_lead",{p_lead:Number(d.retag),p_promoter:v}); }
   else return;
   if(r.error) alert(r.error.message); load();
 });
@@ -325,13 +329,14 @@ function renderDash(){
 }
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return;
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); const k=b.dataset.tab;
-  $("tabLeads").classList.toggle("hide",k!=="leads"); $("tabDash").classList.toggle("hide",k!=="dash"); $("tabReq").classList.toggle("hide",k!=="req");
+  $("tabLeads").classList.toggle("hide",k!=="leads"); $("tabDash").classList.toggle("hide",k!=="dash"); $("tabReq").classList.toggle("hide",k!=="req"); $("tabChg").classList.toggle("hide",k!=="chg");
+  if(k==="chg") loadChg();
   if(k==="dash") renderDash(); if(k==="req") loadReq();});
 
 function showDup(){
   const g={}; leads.forEach(l=>{const k=l.customer_name.trim().replace(/\s+/g," ").toLowerCase(); (g[k]=g[k]||[]).push(l);});
   const groups=Object.values(g).filter(a=>a.length>1).map(a=>a.sort((x,y)=>new Date(x.created_at)-new Date(y.created_at)));
-  const tsmOf=l=>{const p=people[l.promoter_id], t=p&&people[p.manager_id]; return t?t.full_name:"—";};
+  const tsmOf=l=>{const t=STRUCT.find(x=>x.territory_id===l.territory_id); return t?(t.tsm_name||"Vacant"):"—";};
   $("dupBody").innerHTML=`<h2>Duplicate names (exact match)</h2><p class="msg">${groups.length?groups.length+" name(s) appear more than once. The earliest entry is the 1st touch. Flag the others so the TSM or promoter removes them.":"No duplicates found."}</p>`+
    groups.map(a=>`<div class="dg"><b>${esc(a[0].customer_name)}</b> · ${a.length} entries`+a.map((l,i)=>`<div class="dr"><div>${i===0?'<span class="pill h-Warm">1st touch</span> ':""}${esc(people[l.promoter_id]?.full_name||"Unassigned")} · TSM: ${esc(tsmOf(l))}<br><span class="sub">${new Date(l.created_at).toLocaleDateString("en-PH")} · ${esc(l.location)} · ${esc(l.store_name)} · ${l.status}</span></div><div>${l.dup_flag?`<button class="ghost" data-unflag="${l.id}">Flagged · Undo</button>`:`<button data-flag="${l.id}">Flag as duplicate</button>`}</div></div>`).join("")+"</div>").join("");
   if(!$("dupDlg").open) $("dupDlg").showModal();
@@ -361,13 +366,14 @@ function initAdmin(){
     <label id="a_mgrw" class="hide"><span id="a_mgrl">Reports to</span><select id="a_mgr"></select></label>
     <label id="a_unitw" class="hide"><span id="a_unitl">Region name (optional)</span><input id="a_unit" placeholder="e.g. North Luzon"></label></div>
     <p><button id="a_create">Create user</button></p><div id="a_res" class="msg"></div></section>
+  <section class="card"><h2>Team changes to execute</h2><p class="msg">Approved changes appear here. Scheduled changes become ready on their date.</p><div id="a_chg"></div></section>
   <section class="card"><h2>Users and access status</h2><div class="stats" id="a_stats"></div><br>
     <div class="bar"><input id="a_q" placeholder="Search name"><select id="a_f"><option value="">All access types</option><option value="HO">Head Office</option><option value="RSM">RSM</option><option value="TSM">TSM</option><option value="PROMOTER">Promoter</option><option value="ADMIN">Admin</option></select><button id="a_en">Enable selected</button><button class="ghost" id="a_dis">Disable selected</button></div>
     <div id="a_notice" class="msg"></div>
     <div class="tablewrap"><table><thead><tr><th><input type="checkbox" id="a_all" aria-label="Select all"></th><th>Name</th><th>Access type</th><th>Reports to</th><th>Status</th><th>Access code</th><th>Access</th><th>Details</th></tr></thead><tbody id="a_body"></tbody></table></div></section>
   <section class="card"><h2>Audit extract</h2><p class="msg">Download the access history (created, locked, reset requested, approved by RSM, enabled, disabled) for a date range.</p>
     <div class="grid"><label>From<input type="date" id="x_from"></label><label>To<input type="date" id="x_to"></label>
-    <label>Event<select id="x_ev"><option value="">All events</option><option value="CREATED">Created</option><option value="LOCKED">Locked</option><option value="RESET_REQUESTED">Reset requested</option><option value="RESET_APPROVED">Approved by RSM</option><option value="RESET_REJECTED">Rejected by RSM</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option></select></label></div>
+    <label>Event<select id="x_ev"><option value="">All events</option><option value="CREATED">Created</option><option value="LOCKED">Locked</option><option value="RESET_REQUESTED">Reset requested</option><option value="RESET_APPROVED">Approved by RSM</option><option value="RESET_REJECTED">Rejected by RSM</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option><option value="POSITION_REQUESTED">Position change requested</option><option value="POSITION_APPROVED">Position change approved</option><option value="POSITION_EXECUTED">Position change executed</option></select></label></div>
     <p><button id="x_go">Extract CSV</button></p><div id="x_msg" class="msg"></div></section>
   <section class="card"><h2>Structure: regions and territories</h2><p class="msg">Each region belongs to an RSM and each territory to a TSM. Leads stay with their territory and region.</p>
     <div class="tablewrap"><table><thead><tr><th>Region</th><th>RSM</th><th>Territory</th><th>TSM</th><th>Promoters</th></tr></thead><tbody id="s_body"></tbody></table></div></section>`;
@@ -397,19 +403,19 @@ function initAdmin(){
     m.className="msg good"; m.textContent=data.length+" record(s) extracted."; };
   loadAdmin();
 }
-async function loadAdmin(){ const {data,error}=await sb.rpc("admin_list_users"); if(error){ alert(error.message); return; } adm=data; renderAdmin(); loadStruct(); }
+async function loadAdmin(){ const {data,error}=await sb.rpc("admin_list_users"); if(error){ alert(error.message); return; } adm=data; renderAdmin(); loadStruct(); loadChg(); }
 async function setAccess(ids,en,ask){
   if(!ids.length){ alert("Select at least one user."); return; }
-  if(ask&&!confirm(`Disable access for ${ids.length} user(s)?`)) return;
-  const {data,error}=await sb.rpc("admin_set_status",{p_ids:ids,p_enable:en}); if(error) alert(error.message); else showEnable(data,en); sel.clear(); await loadAdmin();
+  let why=null; if(!en){ why=await askReason(ids.length); if(!why){ await loadAdmin(); return; } }
+  const {data,error}=await sb.rpc("admin_set_status",{p_ids:ids,p_enable:en,p_reason:why}); if(error) alert(error.message); else showEnable(data,en); sel.clear(); await loadAdmin();
 }
 function showEnable(r,en){ const m=$("a_notice"); m.className="msg good"; let h="";
   if(en&&r&&r.codes&&r.codes.length) h+="<b>New access codes issued. Share each privately:</b><br>"+r.codes.map(c=>`${esc(c.name)}: <b class="codebox">${esc(c.code)}</b>`).join("<br>");
-  if(en&&r&&r.skipped) h+=`<br>${r.skipped} locked user(s) were not enabled. They need an RSM-approved reset request first.`;
+  if(en&&r&&r.skipped) h+=`<br>${r.skipped} user(s) were not enabled. Locked users need an RSM-approved reset request, and closed accesses (Resigned, Terminated, End of contract, Promoted) need a rehire.`;
   m.innerHTML=h; }
 async function openHist(id){
   const u=adm.find(x=>x.id===id), {data,error}=await sb.rpc("admin_history",{p_user:id}); if(error){ alert(error.message); return; }
-  const L={CREATED:"Access created",LOCKED:"Locked (multiple wrong attempts)",DISABLED:"Disabled by Admin",RESET_REQUESTED:"Reset requested",RESET_APPROVED:"Approved by RSM",RESET_REJECTED:"Rejected by RSM",ENABLED:"Enabled by Admin"};
+  const L={CREATED:"Access created",LOCKED:"Locked (multiple wrong attempts)",DISABLED:"Disabled by Admin",RESET_REQUESTED:"Reset requested",RESET_APPROVED:"Approved by RSM",RESET_REJECTED:"Rejected by RSM",ENABLED:"Enabled by Admin",POSITION_REQUESTED:"Position change requested",POSITION_APPROVED:"Position change approved",POSITION_REJECTED:"Position change rejected or cancelled",POSITION_EXECUTED:"Position change executed"};
   const last=e=>{const x=data.filter(r=>r.event===e).pop(); return x?fmtD(x.happened_at):"—";};
   $("histBody").innerHTML=`<h2>Access history: ${esc(u?.full_name||"")}</h2><p class="msg">Official record. It cannot be edited or deleted.</p>
    <div class="stats"><div>Created<strong style="font-size:15px">${last("CREATED")}</strong></div><div>Locked<strong style="font-size:15px">${last("LOCKED")}</strong></div><div>Approved by RSM<strong style="font-size:15px">${last("RESET_APPROVED")}</strong></div><div>Enabled<strong style="font-size:15px">${last("ENABLED")}</strong></div></div><br>`+
@@ -460,11 +466,77 @@ function renderAdmin(){
   $("a_body").innerHTML=rows.map(u=>{ const mine=u.id===me.id, on=codeOn.has(u.id);
     return "<tr><td>"+(mine?"":`<input type="checkbox" data-sel="${u.id}" ${sel.has(u.id)?"checked":""} aria-label="Select ${esc(u.full_name)}">`)+"</td>"+
     d("Name",esc(u.full_name)+(mine?" (you)":""))+d("Access type",RN[u.role])+d("Reports to",esc(u.manager_name||"—"))+
-    d("Status",`<span class="pill s-${u.status}">${u.status==="LOCKED"?"LOCKED — multiple retries":u.status}</span>${u.reset_status?`<div class="sub">${u.reset_status==="APPROVED"?"Reset approved by RSM — ready to enable":"Reset requested — awaiting RSM approval"}</div>`:""}`)+
+    d("Status",`<span class="pill s-${u.status}">${u.status==="LOCKED"?"LOCKED — multiple retries":u.status==="DISABLED"&&u.exit_reason?"DISABLED — "+esc(u.exit_reason):u.status}</span>${u.reset_status?`<div class="sub">${u.reset_status==="APPROVED"?"Reset approved by RSM — ready to enable":"Reset requested — awaiting RSM approval"}</div>`:""}`)+
     d("Access code",(on?esc(u.code||"—"):"••••-••••-••••")+`<button class="eye" data-eye="${u.id}" aria-label="${on?"Hide":"Show"} access code">${on?EYEOFF:EYE}</button>`)+
-    d("Access",mine?"—":`<label class="sw"><input type="checkbox" data-sw="${u.id}" ${u.status==="ACTIVE"?"checked":""} ${u.status==="LOCKED"&&u.reset_status!=="APPROVED"?"disabled title='Needs RSM approval first'":""} aria-label="Enable or disable access for ${esc(u.full_name)}"><span></span></label>`)+d("Details",`<button class="ghost" data-hist="${u.id}">History</button>`+(u.reset_status==="APPROVED"?` <button data-issue="${u.id}">Issue new code</button>`:""))+"</tr>"; }).join("");
+    d("Access",mine?"—":`<label class="sw"><input type="checkbox" data-sw="${u.id}" ${u.status==="ACTIVE"?"checked":""} ${(u.status==="LOCKED"&&u.reset_status!=="APPROVED")||(u.status==="DISABLED"&&CLOSED_R.includes(u.exit_reason))?"disabled title='Cannot be enabled from here'":""} aria-label="Enable or disable access for ${esc(u.full_name)}"><span></span></label>`)+d("Details",`<button class="ghost" data-hist="${u.id}">History</button>`+(u.reset_status==="APPROVED"?` <button data-issue="${u.id}">Issue new code</button>`:""))+"</tr>"; }).join("");
   $("a_all").checked=rows.some(u=>u.id!==me.id)&&rows.filter(u=>u.id!==me.id).every(u=>sel.has(u.id));
 }
+
+const KL={MOVE_PROMOTER:"Move promoter",MOVE_TSM:"Move TSM",REPLACE_TSM:"Replace TSM",REPLACE_RSM:"Replace RSM",EXIT:"Remove from position"};
+const STL={PENDING_APPROVAL:["Awaiting Head Office approval","h-Warm"],APPROVED:["Approved, awaiting Admin","s-ACTIVE"],REJECTED:["Rejected","s-LOCKED"],EXECUTED:["Done","s-ACTIVE"],CANCELLED:["Cancelled","s-DISABLED"]};
+const REASONS=["Resigned","Terminated","End of contract","Promoted","On leave","Other"], CLOSED_R=["Resigned","Terminated","End of contract","Promoted"];
+let chg=[], STRUCT=[], TER=[], CAND=[];
+const retagOpts=l=>'<option value="">Re-tag to promoter…</option>'+Object.values(people).filter(p=>p.role==="PROMOTER"&&p.status==="ACTIVE"&&p.territory_id===l.territory_id).map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
+function askReason(n){ return new Promise(res=>{ const d=$("reasonDlg"); $("rsnFor").textContent=`Disable access for ${n} user(s).`; d.showModal();
+  $("rsnOk").onclick=()=>{ d.close(); res($("rsn").value); }; $("rsnNo").onclick=()=>{ d.close(); res(null); }; d.oncancel=()=>res(null); }); }
+function initChg(){
+  const kinds=[["MOVE_PROMOTER","Move a promoter to another territory"],["MOVE_TSM","Move a TSM to another territory"],["REPLACE_TSM","Replace a TSM"],...(me.role==="HO"?[["REPLACE_RSM","Replace an RSM"]]:[]),["EXIT","Remove someone from their position"]];
+  $("tabChg").innerHTML=`<section class="card"><h2>Request a team change</h2><div class="grid">
+    <label>Type of change<select id="c_kind"><option value="">Select</option>${kinds.map(k=>`<option value="${k[0]}">${k[1]}</option>`).join("")}</select></label>
+    <label>Person<select id="c_who"></select></label>
+    <label id="c_tw" class="hide">Move to territory<select id="c_to"></select></label>
+    <label id="c_nw" class="hide">Replacement (a new account with no team yet)<select id="c_new"></select></label>
+    <label id="c_xw" class="hide"><span id="c_xl">Reason</span><select id="c_ex"></select></label>
+    <label>Effective<select id="c_eff"><option value="">Immediately (once approved)</option><option value="d">On a date</option></select></label>
+    <label id="c_dw" class="hide">Date<input type="date" id="c_date"></label>
+    <label>Notes<input id="c_note" placeholder="Optional"></label></div>
+    <p><button id="c_go">Submit request</button></p><div id="c_msg" class="msg"></div></section>
+   <section class="card"><h2>Team changes</h2><p class="msg">${me.role==="HO"?"Requests from RSMs wait here for your approval. Changes you start are approved automatically.":"Your requests go to Head Office for approval, then the Admin executes them."} Leads stay with their territory when people move.</p><div id="c_list"></div></section>`;
+  $("c_kind").onchange=onKind; $("c_eff").onchange=()=>$("c_dw").classList.toggle("hide",$("c_eff").value!=="d"); $("c_go").onclick=submitChg;
+}
+async function onKind(){
+  const k=$("c_kind").value, ppl=Object.values(people).filter(p=>p.status==="ACTIVE"&&p.id!==me.id);
+  const roles=k==="MOVE_PROMOTER"?["PROMOTER"]:(k==="MOVE_TSM"||k==="REPLACE_TSM")?["TSM"]:k==="REPLACE_RSM"?["RSM"]:k==="EXIT"?["PROMOTER","TSM",...(me.role==="HO"?["RSM"]:[])]:[];
+  const mv=k==="MOVE_PROMOTER"||k==="MOVE_TSM", rp=k==="REPLACE_TSM"||k==="REPLACE_RSM";
+  $("c_who").innerHTML='<option value="">Select person</option>'+ppl.filter(p=>roles.includes(p.role)).sort((a,b)=>a.full_name.localeCompare(b.full_name)).map(p=>`<option value="${p.id}">${esc(p.full_name)} (${RN[p.role]})</option>`).join("");
+  $("c_tw").classList.toggle("hide",!mv); $("c_nw").classList.toggle("hide",!rp); $("c_xw").classList.toggle("hide",!(rp||k==="EXIT"));
+  if(mv){ TER=(await sb.rpc("list_territories")).data||[]; $("c_to").innerHTML='<option value="">Select territory</option>'+TER.map(t=>`<option value="${t.territory_id}">${esc(t.territory_name)} · ${esc(t.region_name||"no region")} (${esc(t.tsm_name||"Vacant")})</option>`).join(""); }
+  if(rp){ CAND=(await sb.rpc("change_candidates",{p_kind:k})).data||[]; $("c_new").innerHTML='<option value="">Select replacement</option>'+CAND.map(c=>`<option value="${c.id}">${esc(c.full_name)}</option>`).join(""); }
+  $("c_xl").textContent=k==="EXIT"?"Reason":"What happens to the person leaving?";
+  $("c_ex").innerHTML=(k==="EXIT"?'<option value="">Select reason</option>':'<option value="">Stays active (reassigned elsewhere)</option>')+REASONS.map(x=>`<option>${x}</option>`).join("");
+}
+async function submitChg(){
+  const m=$("c_msg"), k=$("c_kind").value, mv=k==="MOVE_PROMOTER"||k==="MOVE_TSM", rp=k==="REPLACE_TSM"||k==="REPLACE_RSM"; m.className="msg err";
+  if(!k||!$("c_who").value){ m.textContent="Choose the type of change and the person."; return; }
+  if(mv&&!$("c_to").value){ m.textContent="Choose the destination territory."; return; }
+  if(rp&&!$("c_new").value){ m.textContent="Choose the replacement."; return; }
+  if(k==="EXIT"&&!$("c_ex").value){ m.textContent="Choose a reason."; return; }
+  const dated=$("c_eff").value==="d", eff=dated?$("c_date").value:null; if(dated&&!eff){ m.textContent="Pick the effective date."; return; }
+  const {error}=await sb.rpc("request_change",{p_kind:k,p_subject:$("c_who").value,p_target:mv?$("c_to").value:null,p_new:rp?$("c_new").value:null,p_exit:(rp||k==="EXIT")?($("c_ex").value||null):null,p_effective:eff,p_note:$("c_note").value.trim()||null});
+  if(error){ m.textContent=error.message; return; }
+  m.className="msg good"; m.textContent=me.role==="HO"?"Request submitted and approved. The Admin will execute it.":"Request submitted. Head Office will review it, then the Admin will execute it.";
+  $("c_kind").value=""; $("c_note").value=""; await onKind(); loadChg();
+}
+function chgHtml(c,admin){
+  const st=STL[c.status]||[c.status,""], eff=c.effective_date?"Effective "+c.effective_date:"Immediate", due=admin&&c.status==="APPROVED"&&!c.can_execute;
+  const what=KL[c.kind]+": <b>"+esc(c.subject_name)+"</b> ("+RN[c.subject_role]+")"+(c.target_name?" → "+esc(c.target_name):"")+(c.new_name?" · replaced by <b>"+esc(c.new_name)+"</b>":"")+(c.exit_reason?" · "+esc(c.exit_reason):"");
+  return `<div class="dg"><div>${what} <span class="pill ${st[1]}">${st[0]}</span></div><div class="sub">${eff} · requested by ${esc(c.initiated_by_name||"")} on ${fmtD(c.initiated_at)}${c.approved_at?" · approved by "+esc(c.approved_by_name)+" on "+fmtD(c.approved_at):""}${c.executed_at?" · executed "+fmtD(c.executed_at)+(c.tag?" ("+esc(c.tag)+")":""):""}${c.note?" · "+esc(c.note):""}</div>
+    <p>${c.can_decide?`<button data-capp="${c.id}">Approve</button> <button class="ghost" data-crej="${c.id}">Reject</button> `:""}${c.can_execute?`<button data-cexec="${c.id}">Execute now</button> `:""}${due?`<span class="sub">Due on ${c.effective_date} </span>`:""}${c.can_cancel?`<button class="ghost" data-ccan="${c.id}">Cancel</button>`:""}</p></div>`;
+}
+async function loadChg(){
+  const {data,error}=await sb.rpc("list_changes"); if(error) return; chg=data;
+  const n=chg.filter(c=>c.can_decide).length; if($("chgBadge")) $("chgBadge").textContent=n?" ("+n+")":"";
+  if($("c_list")) $("c_list").innerHTML=chg.length?chg.map(c=>chgHtml(c,false)).join(""):"No team changes yet.";
+  if($("a_chg")){ const o=chg.filter(c=>c.status==="APPROVED"), w=chg.filter(c=>c.status==="PENDING_APPROVAL"), d=chg.filter(c=>!["APPROVED","PENDING_APPROVAL"].includes(c.status)).slice(0,10);
+    $("a_chg").innerHTML=(o.length?o.map(c=>chgHtml(c,true)).join(""):"Nothing waiting to be executed.")+(w.length?`<p class="sub">${w.length} more awaiting Head Office approval.</p>`:"")+(d.length?`<h2 style="margin-top:18px;font-size:15px">Recent</h2>`+d.map(c=>chgHtml(c,true)).join(""):""); }
+}
+document.body.addEventListener("click",async e=>{
+  const b=e.target.closest("[data-capp],[data-crej],[data-cexec],[data-ccan]"); if(!b) return; const d=b.dataset; let r;
+  if(d.capp||d.crej){ const ok=!!d.capp; let note=null; if(!ok){ note=prompt("Reason for rejecting (optional):"); if(note===null) return; } r=await sb.rpc("approve_change",{p_id:Number(d.capp||d.crej),p_approve:ok,p_note:note}); }
+  else if(d.cexec){ if(!confirm("Execute this change now? Reporting lines and visibility update immediately.")) return; r=await sb.rpc("execute_change",{p_id:Number(d.cexec)}); if(!r.error){ alert("Done: "+r.data); if(me.role==="ADMIN") loadAdmin(); } }
+  else { if(!confirm("Cancel this request?")) return; r=await sb.rpc("cancel_change",{p_id:Number(d.ccan)}); }
+  if(r.error) alert(r.error.message); loadChg();
+});
 
 let lastAct=Date.now();
 ["mousemove","keydown","click","touchstart","scroll"].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now();},{passive:true}));
