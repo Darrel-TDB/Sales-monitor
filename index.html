@@ -358,7 +358,8 @@ function initAdmin(){
   $("tabAdmin").innerHTML=`<section class="card"><h2>Create user</h2><div class="grid">
     <label>Full name<input id="a_name"></label>
     <label>Access type<select id="a_role"><option value="">Select access type</option><option value="HO">Head Office</option><option value="RSM">Regional Sales Manager (RSM)</option><option value="TSM">Territory Sales Manager (TSM)</option><option value="PROMOTER">Promoter</option></select></label>
-    <label id="a_mgrw" class="hide"><span id="a_mgrl">Reports to</span><select id="a_mgr"></select></label></div>
+    <label id="a_mgrw" class="hide"><span id="a_mgrl">Reports to</span><select id="a_mgr"></select></label>
+    <label id="a_unitw" class="hide"><span id="a_unitl">Region name (optional)</span><input id="a_unit" placeholder="e.g. North Luzon"></label></div>
     <p><button id="a_create">Create user</button></p><div id="a_res" class="msg"></div></section>
   <section class="card"><h2>Users and access status</h2><div class="stats" id="a_stats"></div><br>
     <div class="bar"><input id="a_q" placeholder="Search name"><select id="a_f"><option value="">All access types</option><option value="HO">Head Office</option><option value="RSM">RSM</option><option value="TSM">TSM</option><option value="PROMOTER">Promoter</option><option value="ADMIN">Admin</option></select><button id="a_en">Enable selected</button><button class="ghost" id="a_dis">Disable selected</button></div>
@@ -367,15 +368,17 @@ function initAdmin(){
   <section class="card"><h2>Audit extract</h2><p class="msg">Download the access history (created, locked, reset requested, approved by RSM, enabled, disabled) for a date range.</p>
     <div class="grid"><label>From<input type="date" id="x_from"></label><label>To<input type="date" id="x_to"></label>
     <label>Event<select id="x_ev"><option value="">All events</option><option value="CREATED">Created</option><option value="LOCKED">Locked</option><option value="RESET_REQUESTED">Reset requested</option><option value="RESET_APPROVED">Approved by RSM</option><option value="RESET_REJECTED">Rejected by RSM</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option></select></label></div>
-    <p><button id="x_go">Extract CSV</button></p><div id="x_msg" class="msg"></div></section>`;
-  $("a_role").onchange=()=>{ const r=$("a_role").value, need=r==="TSM"?"RSM":r==="PROMOTER"?"TSM":""; $("a_mgrw").classList.toggle("hide",!need);
+    <p><button id="x_go">Extract CSV</button></p><div id="x_msg" class="msg"></div></section>
+  <section class="card"><h2>Structure: regions and territories</h2><p class="msg">Each region belongs to an RSM and each territory to a TSM. Leads stay with their territory and region.</p>
+    <div class="tablewrap"><table><thead><tr><th>Region</th><th>RSM</th><th>Territory</th><th>TSM</th><th>Promoters</th></tr></thead><tbody id="s_body"></tbody></table></div></section>`;
+  $("a_role").onchange=()=>{ const r=$("a_role").value, need=r==="TSM"?"RSM":r==="PROMOTER"?"TSM":""; $("a_mgrw").classList.toggle("hide",!need); $("a_unitw").classList.toggle("hide",!["RSM","TSM"].includes(r)); $("a_unitl").textContent=r==="RSM"?"Region name (optional)":"Territory name (optional)";
     if(need){ $("a_mgrl").textContent="Reports to ("+need+")"; $("a_mgr").innerHTML='<option value="">Select '+need+'</option>'+adm.filter(u=>u.role===need).map(u=>`<option value="${u.id}">${esc(u.full_name)}</option>`).join(""); } };
   $("a_create").onclick=async()=>{ const m=$("a_res"), name=$("a_name").value.trim(), role=$("a_role").value, mgr=$("a_mgr").value||null; m.className="msg err";
     if(!name||!role||(["TSM","PROMOTER"].includes(role)&&!mgr)){ m.textContent="Enter the name, the access type and who they report to."; return; }
-    const {data,error}=await sb.rpc("admin_create_user",{p_name:name,p_role:role,p_manager:mgr}); if(error){ m.textContent=error.message; return; }
+    const {data,error}=await sb.rpc("admin_create_user",{p_name:name,p_role:role,p_manager:mgr,p_unit:$("a_unit").value.trim()||null}); if(error){ m.textContent=error.message; return; }
     m.className="msg good"; m.innerHTML=`Created ${esc(name)}. Access code: <b class="codebox">${esc(data)}</b> <button class="ghost" id="a_copy">Copy</button><br>Share it with the user privately. It also shows in the list below.`;
     $("a_copy").onclick=()=>navigator.clipboard&&navigator.clipboard.writeText(data);
-    $("a_name").value=""; $("a_role").value=""; $("a_mgrw").classList.add("hide"); await loadAdmin(); };
+    $("a_name").value=""; $("a_role").value=""; $("a_mgrw").classList.add("hide"); $("a_unitw").classList.add("hide"); $("a_unit").value=""; await loadAdmin(); };
   ["a_q","a_f"].forEach(i=>$(i).addEventListener("input",renderAdmin));
   $("a_all").onchange=e=>{ const vis=adminRows().filter(u=>u.id!==me.id).map(u=>u.id); vis.forEach(id=>e.target.checked?sel.add(id):sel.delete(id)); renderAdmin(); };
   $("a_en").onclick=()=>setAccess([...sel],true,false); $("a_dis").onclick=()=>setAccess([...sel],false,true);
@@ -394,7 +397,7 @@ function initAdmin(){
     m.className="msg good"; m.textContent=data.length+" record(s) extracted."; };
   loadAdmin();
 }
-async function loadAdmin(){ const {data,error}=await sb.rpc("admin_list_users"); if(error){ alert(error.message); return; } adm=data; renderAdmin(); }
+async function loadAdmin(){ const {data,error}=await sb.rpc("admin_list_users"); if(error){ alert(error.message); return; } adm=data; renderAdmin(); loadStruct(); }
 async function setAccess(ids,en,ask){
   if(!ids.length){ alert("Select at least one user."); return; }
   if(ask&&!confirm(`Disable access for ${ids.length} user(s)?`)) return;
@@ -439,6 +442,16 @@ $("rstBtn").onclick=async()=>{
   if(error){ m.textContent="Could not send the request. Please try again."; return; }
   m.className="msg good"; m.textContent="If your details match an account, your request has been sent to your RSM for approval. Once approved, the Admin will issue your new code.";
 };
+async function loadStruct(){
+  const {data,error}=await sb.rpc("admin_structure"); if(error||!$("s_body")) return;
+  const v='<span class="pill s-LOCKED">Vacant</span>', d=(k,x)=>`<td data-label="${k}">${x}</td>`;
+  $("s_body").innerHTML=data.map(r=>"<tr>"+d("Region",r.region_id?esc(r.region_name)+` <button class="ghost" data-rn="region:${r.region_id}">Rename</button>`:"—")+d("RSM",r.region_id?(r.rsm_name?esc(r.rsm_name):v):"—")+
+    d("Territory",r.territory_id?esc(r.territory_name)+` <button class="ghost" data-rn="territory:${r.territory_id}">Rename</button>`:"—")+d("TSM",r.territory_id?(r.tsm_name?esc(r.tsm_name):v):"—")+d("Promoters",r.territory_id?r.promoters:"—")+"</tr>").join("")||'<tr><td colspan="5">No regions yet.</td></tr>';
+}
+$("tabAdmin").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-rn]"); if(!b) return; const [k,id]=b.dataset.rn.split(":"), n=prompt("New name:"); if(!n||!n.trim()) return;
+  const {error}=await sb.rpc("admin_rename",{p_kind:k,p_id:id,p_name:n.trim()}); if(error) alert(error.message); loadStruct();
+});
 function adminRows(){ const q=$("a_q").value.toLowerCase(), f=$("a_f").value;
   return adm.filter(u=>(!f||u.role===f)&&(!q||u.full_name.toLowerCase().includes(q))).sort((a,b)=>ORDER.indexOf(a.role)-ORDER.indexOf(b.role)||a.full_name.localeCompare(b.full_name)); }
 function renderAdmin(){
