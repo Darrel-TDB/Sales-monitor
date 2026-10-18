@@ -201,7 +201,8 @@ async function boot(){
   if(["HO","RSM","TSM"].includes(me.role)){ STRUCT=(await sb.rpc("my_structure")).data||[]; }
   if(["HO","RSM"].includes(me.role)){ $("fTsm").classList.remove("hide"); fillTsm(); }
   if(me.role==="HO"){ $("fRsm").classList.remove("hide"); $("fRsm").innerHTML='<option value="">All RSMs</option>'+[...new Map(STRUCT.filter(x=>x.region_id).map(x=>[x.region_id,x])).values()].map(x=>`<option value="${x.region_id}">${esc(x.region_name)} (${esc(x.rsm_name||"Vacant")})</option>`).join(""); }
-  if(["RSM","HO"].includes(me.role)){ $("tabReqBtn").classList.remove("hide"); loadReq(); $("tabChgBtn").classList.remove("hide"); initChg(); loadChg(); }
+  if(["RSM","HO"].includes(me.role)){ $("tabReqBtn").classList.remove("hide"); loadReq(); }
+  if(["TSM","RSM","HO"].includes(me.role)){ $("tabChgBtn").classList.remove("hide"); initChg(); loadChg(); }
   await load();
 }
 function fillTsm(){ const r=$("fRsm").value; $("fTsm").innerHTML='<option value="">All TSMs</option>'+STRUCT.filter(x=>x.territory_id&&(!r||x.region_id===r)).map(x=>`<option value="${x.territory_id}">${esc(x.territory_name)} (${esc(x.tsm_name||"Vacant")})</option>`).join(""); }
@@ -480,7 +481,9 @@ const retagOpts=l=>'<option value="">Re-tag to promoter…</option>'+Object.valu
 function askReason(n){ return new Promise(res=>{ const d=$("reasonDlg"); $("rsnFor").textContent=`Disable access for ${n} user(s).`; d.showModal();
   $("rsnOk").onclick=()=>{ d.close(); res($("rsn").value); }; $("rsnNo").onclick=()=>{ d.close(); res(null); }; d.oncancel=()=>res(null); }); }
 function initChg(){
-  const kinds=[["MOVE_PROMOTER","Move a promoter to another territory"],["MOVE_TSM","Move a TSM to another territory"],["REPLACE_TSM","Replace a TSM"],...(me.role==="HO"?[["REPLACE_RSM","Replace an RSM"]]:[]),["EXIT","Remove someone from their position"]];
+  const kinds=({HO:[["REPLACE_RSM","Replace an RSM (new RSM takes over the region)"],["EXIT","Remove an RSM from their position"]],
+    RSM:[["MOVE_TSM","Move a TSM to another territory"],["REPLACE_TSM","Replace a TSM (new TSM takes over the territory)"],["MOVE_PROMOTER","Move a promoter who reports directly to you (no TSM)"],["EXIT","Remove a TSM, or a promoter who has no TSM"]],
+    TSM:[["MOVE_PROMOTER","Move a promoter to another territory"],["EXIT","Remove a promoter (resigned, etc.)"]]})[me.role];
   $("tabChg").innerHTML=`<section class="card"><h2>Request a team change</h2><div class="grid">
     <label>Type of change<select id="c_kind"><option value="">Select</option>${kinds.map(k=>`<option value="${k[0]}">${k[1]}</option>`).join("")}</select></label>
     <label>Person<select id="c_who"></select></label>
@@ -490,15 +493,26 @@ function initChg(){
     <label>Effective<select id="c_eff"><option value="">Immediately (once approved)</option><option value="d">On a date</option></select></label>
     <label id="c_dw" class="hide">Date<input type="date" id="c_date"></label>
     <label>Notes<input id="c_note" placeholder="Optional"></label></div>
+    <div id="c_plan"></div>
     <p><button id="c_go">Submit request</button></p><div id="c_msg" class="msg"></div></section>
-   <section class="card"><h2>Team changes</h2><p class="msg">${me.role==="HO"?"Requests from RSMs wait here for your approval. Changes you start are approved automatically.":"Your requests go to Head Office for approval, then the Admin executes them."} Leads stay with their territory when people move.</p><div id="c_list"></div></section>`;
+   <section class="card"><h2>Team changes</h2><p class="msg">${({HO:"You start RSM changes (approved automatically) and approve TSM changes requested by RSMs.",RSM:"You start TSM changes (Head Office approves) and approve promoter changes requested by your TSMs.",TSM:"You start promoter changes. Your RSM approves, then the Admin executes."})[me.role]} The Admin executes every approved change. Completed changes are kept in a history that only Head Office and the Admin can see.</p><div id="c_list"></div></section>`;
   $("c_kind").onchange=onKind; $("c_eff").onchange=()=>$("c_dw").classList.toggle("hide",$("c_eff").value!=="d"); $("c_go").onclick=submitChg;
+  $("c_who").onchange=()=>{ if($("c_kind").value==="MOVE_TSM") planInit(); }; $("c_to").onchange=()=>{ if($("c_kind").value==="MOVE_TSM") planInit(); };
+  $("c_plan").addEventListener("change",e=>{ const id=e.target.dataset.pd; if(!id) return; const v=e.target.value;
+    document.querySelectorAll(`[data-pw="exit:${id}"]`).forEach(x=>x.classList.toggle("hide",v!=="exit"));
+    document.querySelectorAll(`[data-pw="rot:${id}"]`).forEach(x=>x.classList.toggle("hide",v!=="rot")); });
+  $("c_plan").addEventListener("click",e=>{ const b=e.target.closest("[data-pc]"); if(!b) return; const id=b.dataset.pc, dec=document.querySelector(`[data-pd="${id}"]`).value;
+    if(dec==="exit") PLAN.push({tsm:id,exit:document.querySelector(`[data-pr="${id}"]`).value});
+    else if(dec==="rot"){ const t=document.querySelector(`[data-pt="${id}"]`).value; if(!t||PLAN.some(x=>x.to===t)){ alert("Choose a territory that is not already used in this plan."); return; } PLAN.push({tsm:id,to:t}); }
+    else { alert("Choose what happens to this TSM."); return; }
+    renderPlan(); });
 }
 async function onKind(){
   const k=$("c_kind").value, ppl=Object.values(people).filter(p=>p.status==="ACTIVE"&&p.id!==me.id);
-  const roles=k==="MOVE_PROMOTER"?["PROMOTER"]:(k==="MOVE_TSM"||k==="REPLACE_TSM")?["TSM"]:k==="REPLACE_RSM"?["RSM"]:k==="EXIT"?["PROMOTER","TSM",...(me.role==="HO"?["RSM"]:[])]:[];
+  PLAN=[]; $("c_plan").innerHTML="";
+  const roles=k==="REPLACE_RSM"?["RSM"]:(k==="MOVE_TSM"||k==="REPLACE_TSM")?["TSM"]:k==="MOVE_PROMOTER"?["PROMOTER"]:k==="EXIT"?(me.role==="HO"?["RSM"]:me.role==="RSM"?["TSM","PROMOTER"]:["PROMOTER"]):[];
   const mv=k==="MOVE_PROMOTER"||k==="MOVE_TSM", rp=k==="REPLACE_TSM"||k==="REPLACE_RSM";
-  $("c_who").innerHTML='<option value="">Select person</option>'+ppl.filter(p=>roles.includes(p.role)).sort((a,b)=>a.full_name.localeCompare(b.full_name)).map(p=>`<option value="${p.id}">${esc(p.full_name)} (${RN[p.role]})</option>`).join("");
+  $("c_who").innerHTML='<option value="">Select person</option>'+ppl.filter(p=>roles.includes(p.role)&&(me.role==="HO"||p.manager_id===me.id)).sort((a,b)=>a.full_name.localeCompare(b.full_name)).map(p=>`<option value="${p.id}">${esc(p.full_name)} (${RN[p.role]})</option>`).join("");
   $("c_tw").classList.toggle("hide",!mv); $("c_nw").classList.toggle("hide",!rp); $("c_xw").classList.toggle("hide",!(rp||k==="EXIT"));
   if(mv){ TER=(await sb.rpc("list_territories")).data||[]; $("c_to").innerHTML='<option value="">Select territory</option>'+TER.map(t=>`<option value="${t.territory_id}">${esc(t.territory_name)} · ${esc(t.region_name||"no region")} (${esc(t.tsm_name||"Vacant")})</option>`).join(""); }
   if(rp){ CAND=(await sb.rpc("change_candidates",{p_kind:k})).data||[]; $("c_new").innerHTML='<option value="">Select replacement</option>'+CAND.map(c=>`<option value="${c.id}">${esc(c.full_name)}</option>`).join(""); }
@@ -510,17 +524,39 @@ async function submitChg(){
   if(!k||!$("c_who").value){ m.textContent="Choose the type of change and the person."; return; }
   if(mv&&!$("c_to").value){ m.textContent="Choose the destination territory."; return; }
   if(rp&&!$("c_new").value){ m.textContent="Choose the replacement."; return; }
+  if(k==="MOVE_TSM"&&(!PLAN.length||pendingTsms().length)){ m.textContent="Complete the move plan: say what happens to the TSM currently in that territory."; return; }
   if(k==="EXIT"&&!$("c_ex").value){ m.textContent="Choose a reason."; return; }
   const dated=$("c_eff").value==="d", eff=dated?$("c_date").value:null; if(dated&&!eff){ m.textContent="Pick the effective date."; return; }
-  const {error}=await sb.rpc("request_change",{p_kind:k,p_subject:$("c_who").value,p_target:mv?$("c_to").value:null,p_new:rp?$("c_new").value:null,p_exit:(rp||k==="EXIT")?($("c_ex").value||null):null,p_effective:eff,p_note:$("c_note").value.trim()||null});
+  const {error}=await sb.rpc("request_change",{p_kind:k,p_subject:$("c_who").value,p_target:mv?$("c_to").value:null,p_new:rp?$("c_new").value:null,p_exit:(rp||k==="EXIT")?($("c_ex").value||null):null,p_effective:eff,p_plan:k==="MOVE_TSM"?PLAN.map(x=>({tsm:x.tsm,to:x.to||null,exit:x.exit||null})):null,p_note:$("c_note").value.trim()||null});
   if(error){ m.textContent=error.message; return; }
   m.className="msg good"; m.textContent=me.role==="HO"?"Request submitted and approved. The Admin will execute it.":"Request submitted. Head Office will review it, then the Admin will execute it.";
   $("c_kind").value=""; $("c_note").value=""; await onKind(); loadChg();
 }
+let PLAN=[];
+const terOf=t=>(TER.find(x=>x.tsm_id===t)||{}).territory_id;
+const tName=id=>(TER.find(x=>x.territory_id===id)||{}).territory_name||"";
+const tsmName=id=>(people[id]&&people[id].full_name)||(TER.find(x=>x.tsm_id===id)||{}).tsm_name||"TSM";
+function pendingTsms(){ const inPlan=new Set(PLAN.map(x=>x.tsm)), out=[];
+  PLAN.forEach(x=>{ if(x.to){ const inc=(TER.find(t=>t.territory_id===x.to)||{}).tsm_id; if(inc&&!inPlan.has(inc)&&!out.includes(inc)) out.push(inc); } }); return out; }
+function planInit(){ const w=$("c_who").value;
+  if(w&&$("c_to").value&&$("c_to").value===terOf(w)){ alert("That TSM is already in this territory."); $("c_to").value=""; }
+  PLAN=(w&&$("c_to").value)?[{tsm:w,to:$("c_to").value}]:[]; renderPlan(); }
+function renderPlan(){
+  const el=$("c_plan"); if(!PLAN.length){ el.innerHTML=""; return; }
+  const steps=PLAN.map(x=>`<div class="sub">${esc(tsmName(x.tsm))} → ${x.to?esc(tName(x.to)):"leaves ("+esc(x.exit)+")"}</div>`).join("");
+  const asks=pendingTsms().map(id=>{ const opts=TER.filter(x=>!PLAN.some(p=>p.to===x.territory_id)&&x.tsm_id!==id).map(x=>`<option value="${x.territory_id}">${esc(x.territory_name)} (${esc(x.tsm_name||"Vacant")})</option>`).join("");
+    return `<div class="dg"><b>${esc(tsmName(id))}</b> is the TSM in that territory today. What happens to them?
+    <div class="grid"><label>Decision<select data-pd="${id}"><option value="">Select</option><option value="exit">Leaves (resigned, etc.)</option><option value="rot">Rotates to another territory</option></select></label>
+    <label class="hide" data-pw="exit:${id}">Reason<select data-pr="${id}">${REASONS.map(x=>`<option>${x}</option>`).join("")}</select></label>
+    <label class="hide" data-pw="rot:${id}">Rotates to<select data-pt="${id}"><option value="">Select territory</option>${opts}</select></label></div>
+    <p><button class="ghost" data-pc="${id}">Confirm</button></p></div>`; }).join("");
+  el.innerHTML=`<p class="msg"><b>Move plan</b></p>${steps}${asks||'<div class="msg good">The plan is complete.</div>'}`;
+}
 function chgHtml(c,admin){
-  const st=STL[c.status]||[c.status,""], eff=c.effective_date?"Effective "+c.effective_date:"Immediate", due=admin&&c.status==="APPROVED"&&!c.can_execute;
+  let st=STL[c.status]||[c.status,""]; if(c.status==="PENDING_APPROVAL") st=[c.approver_role==="RSM"?"Awaiting RSM approval":"Awaiting Head Office approval","h-Warm"];
+  const eff=c.effective_date?"Effective "+c.effective_date:"Immediate", due=admin&&c.status==="APPROVED"&&!c.can_execute;
   const what=KL[c.kind]+": <b>"+esc(c.subject_name)+"</b> ("+RN[c.subject_role]+")"+(c.target_name?" → "+esc(c.target_name):"")+(c.new_name?" · replaced by <b>"+esc(c.new_name)+"</b>":"")+(c.exit_reason?" · "+esc(c.exit_reason):"");
-  return `<div class="dg"><div>${what} <span class="pill ${st[1]}">${st[0]}</span></div><div class="sub">${eff} · requested by ${esc(c.initiated_by_name||"")} on ${fmtD(c.initiated_at)}${c.approved_at?" · approved by "+esc(c.approved_by_name)+" on "+fmtD(c.approved_at):""}${c.executed_at?" · executed "+fmtD(c.executed_at)+(c.tag?" ("+esc(c.tag)+")":""):""}${c.note?" · "+esc(c.note):""}</div>
+  return `<div class="dg"><div>${what} <span class="pill ${st[1]}">${st[0]}</span></div>${c.plan_text?`<div class="sub">Plan: ${esc(c.plan_text)}</div>`:""}<div class="sub">${eff} · requested by ${esc(c.initiated_by_name||"")} on ${fmtD(c.initiated_at)}${c.approved_at?" · approved by "+esc(c.approved_by_name)+" on "+fmtD(c.approved_at):""}${c.executed_at?" · executed "+fmtD(c.executed_at)+(c.tag?" ("+esc(c.tag)+")":""):""}${c.note?" · "+esc(c.note):""}</div>
     <p>${c.can_decide?`<button data-capp="${c.id}">Approve</button> <button class="ghost" data-crej="${c.id}">Reject</button> `:""}${c.can_execute?`<button data-cexec="${c.id}">Execute now</button> `:""}${due?`<span class="sub">Due on ${c.effective_date} </span>`:""}${c.can_cancel?`<button class="ghost" data-ccan="${c.id}">Cancel</button>`:""}</p></div>`;
 }
 async function loadChg(){
