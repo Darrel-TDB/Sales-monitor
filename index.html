@@ -560,7 +560,9 @@ function chgHtml(c,admin){
     <p>${c.can_decide?`<button data-capp="${c.id}">Approve</button> <button class="ghost" data-crej="${c.id}">Reject</button> `:""}${c.can_execute?`<button data-cexec="${c.id}">Execute now</button> `:""}${due?`<span class="sub">Due on ${c.effective_date} </span>`:""}${c.can_cancel?`<button class="ghost" data-ccan="${c.id}">Cancel</button>`:""}</p></div>`;
 }
 async function loadChg(){
-  const {data,error}=await sb.rpc("list_changes"); if(error) return; chg=data;
+  const {data,error}=await sb.rpc("list_changes");
+  if(error){ const t="Could not load team changes: "+error.message; if($("c_list")) $("c_list").textContent=t; if($("a_chg")) $("a_chg").textContent=t; return; }
+  chg=data;
   const n=chg.filter(c=>c.can_decide).length; if($("chgBadge")) $("chgBadge").textContent=n?" ("+n+")":"";
   if($("c_list")) $("c_list").innerHTML=chg.length?chg.map(c=>chgHtml(c,false)).join(""):"No team changes yet.";
   if($("a_chg")){ const o=chg.filter(c=>c.status==="APPROVED"), w=chg.filter(c=>c.status==="PENDING_APPROVAL"), d=chg.filter(c=>!["APPROVED","PENDING_APPROVAL"].includes(c.status)).slice(0,10);
