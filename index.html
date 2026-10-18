@@ -81,6 +81,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 .s-ACTIVE{background:#d5f5e6}.s-DISABLED{background:#e4e0ee}.s-LOCKED{background:#fde0dd;color:#9a1d16}
 .tablewrap{overflow-x:auto}.codebox{font-size:18px;letter-spacing:.05em}
 #login a{color:var(--brand);font-weight:600;font-size:14px}
+.tabs{flex-wrap:wrap}.amts{text-align:right}.amt small{display:block;font-size:11px;font-weight:500;color:var(--mute)}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -157,6 +158,12 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
   </main>
 </div>
 
+<dialog id="detDlg"><h2 id="det_title">Approval details</h2><p class="msg">Fill these in to mark the lead Approved or Booked. The finance amount is the final amount, and it is the one that gets added up.</p>
+<div class="grid"><label>Type of product<input id="d_type"></label><label>Category<input id="d_cat"></label>
+<label>Item price (₱)<input id="d_price" inputmode="decimal" autocomplete="off"></label><label>Downpayment (₱)<input id="d_dp" inputmode="decimal" autocomplete="off"></label>
+<label>Finance amount (₱)<input id="d_fin" inputmode="decimal" autocomplete="off"></label><label>Industry<input id="d_ind"></label>
+<label>Occupation<input id="d_occ"></label><label>With VAS<select id="d_vas"><option value="">Select</option><option value="Y">Yes</option><option value="N">No</option></select></label></div>
+<p><button id="det_save">Save</button> <button class="ghost" id="det_cancel">Cancel</button></p><div id="d_msg" class="msg"></div></dialog>
 <dialog id="reasonDlg"><h2>Reason for disabling</h2><p class="msg" id="rsnFor"></p><label>Reason<select id="rsn"><option>Resigned</option><option>Terminated</option><option>End of contract</option><option>Promoted</option><option>On leave</option><option>Other</option></select></label><p class="msg">Resigned, Terminated, End of contract and Promoted close the access for good. On leave and Other can be switched back on.</p><p><button id="rsnOk">Disable</button> <button class="ghost" id="rsnNo">Cancel</button></p></dialog>
 <dialog id="histDlg"><div id="histBody"></div><p><button id="histClose">Close</button></p></dialog>
 <dialog id="dupDlg"><div id="dupBody"></div><p><button id="dupClose">Close</button></p></dialog>
@@ -227,17 +234,17 @@ function render(){
   const rows=filtered().sort((a,b)=>(b.status==="Approved")-(a.status==="Approved")), team=me.role!=="PROMOTER", ed=me.role==="TSM"||me.role==="PROMOTER", tag=me.role==="RSM"||me.role==="TSM", ho=me.role==="HO";
   const cnt=k=>rows.filter(l=>heat(l)===k).length;
   const opts=(r,ph,sel)=>`<option value="">${ph}</option>`+Object.values(people).filter(p=>p.role===r).map(p=>`<option value="${p.id}"${p.id===sel?" selected":""}>${esc(p.full_name)}</option>`).join("");
-  const sumA=a=>a.reduce((t,l)=>t+Number(l.loan_amount),0);
+  const sumA=a=>a.reduce((t,l)=>t+effAmt(l),0);
   $("stats").innerHTML=`<div>Leads<strong>${rows.length}</strong></div><div>Total Finance Amount (Disbursed)<strong>${peso(sumA(rows.filter(l=>l.status==="Disbursed")))}</strong></div><div>Untapped Finance Amount<strong>${peso(sumA(rows.filter(l=>!CLOSED.includes(l.status))))}</strong></div><div>Hot leads<strong>${cnt("Hot")}</strong></div><div>Warm leads<strong>${cnt("Warm")}</strong></div>`+(team?`<div>Unassigned<strong>${cnt("POOL")}</strong></div>`:"");
   $("list").innerHTML=rows.map(l=>{const h=heat(l), on=shown===l.id, own=ed&&l.promoter_id, kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`;
     const pp=people[l.promoter_id], orph=tag&&l.promoter_id&&pp&&(pp.status!=="ACTIVE"||pp.territory_id!==l.territory_id)&&!CLOSED.includes(l.status);
     const prom=l.promoter_id?(team?"Promoter: "+esc(pp?.full_name)+(orph?` · no longer in this territory <select data-retag="${l.id}" aria-label="Re-tag to promoter">${retagOpts(l)}</select>`:""):""):ho?`<select data-rsm="${l.id}" aria-label="Assign to RSM">${opts("RSM","Assign to RSM…",l.rsm_id)}</select>`:tag?`<select data-assign="${l.id}" aria-label="Tag to promoter">${opts("PROMOTER","Tag to promoter…")}</select>`:"Not yet tagged to a promoter";
     const mob=l.mobile?(on?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"No mobile number yet";
-    return `<article class="lead${l.status==="Approved"?" appr":""}${l.dup_flag?" dup":""}">${l.status==="Approved"?'<div class="callout">Approved — please call the client</div>':""}${l.dup_flag?'<div class="flagbar">Flagged as duplicate — please remove this lead.'+(l.dup_note?" Note: "+esc(l.dup_note):"")+"</div>":""}<div class="top"><div><b>${on?"••••••••":esc(l.customer_name)}</b><div class="mob">${mob}</div></div><div class="amt">${peso(l.loan_amount)}</div></div>
+    return `<article class="lead${l.status==="Approved"?" appr":""}${l.dup_flag?" dup":""}">${l.status==="Approved"?'<div class="callout">Approved — please call the client</div>':""}${l.dup_flag?'<div class="flagbar">Flagged as duplicate — please remove this lead.'+(l.dup_note?" Note: "+esc(l.dup_note):"")+"</div>":""}<div class="top"><div><b>${on?"••••••••":esc(l.customer_name)}</b><div class="mob">${mob}</div></div>${amtBlock(l)}</div>
     <div class="meta">${esc(l.location)} · ${esc(l.store_name)}</div>
     <div class="row">${h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:""}${own?`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`:`<span class="pill st-${l.status}">${l.status}</span>`}</div>
     ${prom?`<div class="prom">${prom}</div>`:""}
-    <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Source",esc(srcText(l))||"—")}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}
+    <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Source",esc(srcText(l))||"—")}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}${detRows(l,own)}
     ${own?`<label>Remarks<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks"></label>`:kv("Remarks",esc(l.remarks)||"—")}</details>${(me.role==="RSM"||me.role==="TSM")?`<button class="danger" data-del="${l.id}">Delete lead</button>`:(me.role==="PROMOTER"&&l.dup_flag?`<button class="danger" data-del="${l.id}">Remove duplicate</button>`:"")}</article>`;}).join("");
   $("empty").classList.toggle("hide",rows.length>0);
   $("empty").textContent="No leads match.";
@@ -277,6 +284,7 @@ $("list").addEventListener("click",e=>{
 $("list").addEventListener("change",async e=>{
   const d=e.target.dataset, v=e.target.value; let r;
   if(d.rem){ r=await sb.from("leads").update({remarks:v.trim()}).eq("id",d.rem); if(r.error) alert(r.error.message); else{const x=leads.find(z=>z.id==d.rem); if(x) x.remarks=v.trim();} return; }
+  if(d.id&&["Approved","Disbursed"].includes(v)){ openDet(Number(d.id),v); return; }
   if(d.id) r=await sb.from("leads").update({status:v}).eq("id",d.id);
   else if(d.assign){ if(!v) return; r=await sb.rpc("assign_lead",{p_lead:Number(d.assign),p_promoter:v}); }
   else if(d.rsm){ if(!v) return; r=await sb.rpc("assign_to_rsm",{p_lead:Number(d.rsm),p_rsm:v}); }
@@ -288,8 +296,8 @@ $("list").addEventListener("change",async e=>{
 
 $("csv").onclick=()=>{
   if(!me||me.role!=="HO") return;
-  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Source","Status","Remarks"];
-  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,srcText(l),l.status,l.remarks].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
+  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Source","Status","Remarks","Final Finance Amount","Product Type","Category","Item Price","Downpayment","Industry","Occupation","With VAS"];
+  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,srcText(l),l.status,l.remarks,l.final_finance_amount,l.product_type,l.product_category,l.item_price,l.downpayment,l.industry,l.occupation,l.with_vas==null?"":(l.with_vas?"Yes":"No")].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([[head.join(","),...lines].join("\n")],{type:"text/csv"})); a.download="leads.csv"; a.click();
 };
 
@@ -318,15 +326,15 @@ $("upBtn").onclick=async()=>{
 };
 
 function renderDash(){
-  const L=leads, sum=a=>a.reduce((t,l)=>t+Number(l.loan_amount),0), f=x=>L.filter(l=>x.includes(l.status)), tot=sum(L), pct=a=>tot?Math.round(sum(a)/tot*100):0;
-  const stages=[["Rejected (Declined)",f(["Declined"]),"var(--bad)"],["Approved, not yet booked",f(["Approved"]),"var(--ok)"],["Booked (Disbursed)",f(["Disbursed"]),"var(--brand)"],["Potential for call-out (New / Contacted)",f(["New","Contacted"]),"#e0a100"]];
+  const L=leads, sumE=a=>a.reduce((t,l)=>t+effAmt(l),0), sumP=a=>a.reduce((t,l)=>t+Number(l.loan_amount),0), f=x=>L.filter(l=>x.includes(l.status)), tot=sumP(L), pct=a=>tot?Math.round(sumE(a)/tot*100):0;
+  const stages=[["Rejected (Declined)",f(["Declined"]),"var(--bad)"],["Approved, not yet booked (final amount)",f(["Approved"]),"var(--ok)"],["Booked (final amount)",f(["Disbursed"]),"var(--brand)"],["Potential for call-out (New / Contacted)",f(["New","Contacted"]),"#e0a100"]];
   const tile=(k,v)=>`<div>${k}<strong>${v}</strong></div>`;
-  const fn=(name,a,c,w)=>`<div class="fn"><div class="fnh"><span>${name}</span><span>${a.length} lead(s) · ${peso(sum(a))}${w===undefined?"":" · "+w+"%"}</span></div><div class="fnb"><i style="width:${Math.max(w??100,3)}%;background:${c}"></i></div></div>`;
-  const pros=Object.values(people).filter(p=>p.role==="PROMOTER").map(p=>{const a=L.filter(l=>l.promoter_id===p.id);return{n:p.full_name,c:a.length,amt:sum(a),ok:a.filter(l=>l.status==="Approved").length,bk:a.filter(l=>l.status==="Disbursed").length};}).sort((a,b)=>b.c-a.c||b.amt-a.amt);
+  const fn=(name,a,c,w,amount)=>`<div class="fn"><div class="fnh"><span>${name}</span><span>${a.length} lead(s) · ${peso(amount)}${w===undefined?"":" · "+w+"%"}</span></div><div class="fnb"><i style="width:${Math.min(Math.max(w??100,3),100)}%;background:${c}"></i></div></div>`;
+  const pros=Object.values(people).filter(p=>p.role==="PROMOTER").map(p=>{const a=L.filter(l=>l.promoter_id===p.id);return{n:p.full_name,c:a.length,amt:sumP(a),ok:a.filter(l=>l.status==="Approved").length,bk:a.filter(l=>l.status==="Disbursed").length,bamt:sumE(a.filter(l=>l.status==="Disbursed"))};}).sort((a,b)=>b.c-a.c||b.amt-a.amt);
   const mx=Math.max(1,...pros.map(p=>p.c));
-  $("tabDash").innerHTML=`<section class="card"><h2>Overview</h2><div class="stats">${tile("New leads",f(["New"]).length)}${tile("Total leads",L.length)}${tile("Total possible finance amount",peso(tot))}${tile("Booked amount",peso(sum(f(["Disbursed"]))))}</div></section>
-  <section class="card"><h2>Funnel: what happened to the possible finance amount</h2>${fn("All leads (total possible finance amount)",L,"var(--mute)")}${stages.map(x=>fn(x[0],x[1],x[2],pct(x[1]))).join("")}</section>
-  <section class="card"><h2>Promoter lead input</h2>${pros.length?pros.map((p,i)=>`<div class="fn"><div class="fnh"><span>${i+1}. ${esc(p.n)}</span><span>${p.c} lead(s) · ${peso(p.amt)} · ${p.ok} approved · ${p.bk} booked</span></div><div class="fnb"><i style="width:${p.c?Math.max(p.c/mx*100,3):0}%;background:var(--brand)"></i></div></div>`).join(""):"No promoters yet."}</section>`;
+  $("tabDash").innerHTML=`<section class="card"><h2>Overview</h2><div class="stats">${tile("New leads",f(["New"]).length)}${tile("Total leads",L.length)}${tile("Total possible finance amount",peso(tot))}${tile("Booked amount (final)",peso(sumE(f(["Disbursed"]))))}</div></section>
+  <section class="card"><h2>Funnel: what happened to the possible finance amount</h2>${fn("All leads (total possible finance amount)",L,"var(--mute)",undefined,tot)}${stages.map(x=>fn(x[0],x[1],x[2],pct(x[1]),sumE(x[1]))).join("")}</section>
+  <section class="card"><h2>Promoter lead input</h2>${pros.length?pros.map((p,i)=>`<div class="fn"><div class="fnh"><span>${i+1}. ${esc(p.n)}</span><span>${p.c} lead(s) · ${peso(p.amt)} possible · ${p.ok} approved · ${p.bk} booked (${peso(p.bamt)})</span></div><div class="fnb"><i style="width:${p.c?Math.max(p.c/mx*100,3):0}%;background:var(--brand)"></i></div></div>`).join(""):"No promoters yet."}</section>`;
 }
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return;
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); const k=b.dataset.tab;
@@ -378,6 +386,12 @@ function initAdmin(){
     <p><button id="x_go">Extract CSV</button></p><div id="x_msg" class="msg"></div></section>
   <section class="card"><h2>Structure: regions and territories</h2><p class="msg">Each region belongs to an RSM and each territory to a TSM. Leads stay with their territory and region.</p>
     <div class="tablewrap"><table><thead><tr><th>Region</th><th>RSM</th><th>Territory</th><th>TSM</th><th>Promoters</th></tr></thead><tbody id="s_body"></tbody></table></div></section>`;
+  { const secs=[...$("tabAdmin").children], defs=[["users","Users and access",2],["create","Create user",0],["chg","Team changes",1,"a_chgBadge"],["struct","Structure",4],["audit","Audit extract",3]];
+    const nav=document.createElement("nav"); nav.className="tabs"; nav.id="a_tabs";
+    nav.innerHTML=defs.map((d,i)=>`<button class="tab${i?"":" on"}" data-at="${d[0]}">${d[1]}${d[3]?`<span id="${d[3]}"></span>`:""}</button>`).join("");
+    const panes=defs.map((d,i)=>{ const p=document.createElement("div"); p.dataset.pane=d[0]; if(i) p.classList.add("hide"); p.appendChild(secs[d[2]]); return p; });
+    $("tabAdmin").replaceChildren(nav,...panes);
+    nav.addEventListener("click",e=>{ const b=e.target.closest("[data-at]"); if(!b) return; nav.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); $("tabAdmin").querySelectorAll("[data-pane]").forEach(p=>p.classList.toggle("hide",p.dataset.pane!==b.dataset.at)); }); }
   $("a_role").onchange=()=>{ const r=$("a_role").value, need=r==="TSM"?"RSM":r==="PROMOTER"?"TSM":""; $("a_mgrw").classList.toggle("hide",!need); $("a_unitw").classList.toggle("hide",!["RSM","TSM"].includes(r)); $("a_unitl").textContent=r==="RSM"?"Region name (optional)":"Territory name (optional)";
     if(need){ $("a_mgrl").textContent="Reports to ("+need+")"; $("a_mgr").innerHTML='<option value="">Select '+need+'</option>'+adm.filter(u=>u.role===need).map(u=>`<option value="${u.id}">${esc(u.full_name)}</option>`).join(""); } };
   $("a_create").onclick=async()=>{ const m=$("a_res"), name=$("a_name").value.trim(), role=$("a_role").value, mgr=$("a_mgr").value||null; m.className="msg err";
@@ -565,6 +579,7 @@ async function loadChg(){
   chg=data;
   const n=chg.filter(c=>c.can_decide).length; if($("chgBadge")) $("chgBadge").textContent=n?" ("+n+")":"";
   if($("c_list")) $("c_list").innerHTML=chg.length?chg.map(c=>chgHtml(c,false)).join(""):"No team changes yet.";
+  if($("a_chgBadge")){ const n2=chg.filter(c=>c.can_execute).length; $("a_chgBadge").textContent=n2?" ("+n2+")":""; }
   if($("a_chg")){ const o=chg.filter(c=>c.status==="APPROVED"), w=chg.filter(c=>c.status==="PENDING_APPROVAL"), d=chg.filter(c=>!["APPROVED","PENDING_APPROVAL"].includes(c.status)).slice(0,10);
     $("a_chg").innerHTML=(o.length?o.map(c=>chgHtml(c,true)).join(""):"Nothing waiting to be executed.")+(w.length?`<p class="sub">${w.length} more awaiting Head Office approval.</p>`:"")+(d.length?`<h2 style="margin-top:18px;font-size:15px">Recent</h2>`+d.map(c=>chgHtml(c,true)).join(""):""); }
 }
@@ -575,6 +590,41 @@ document.body.addEventListener("click",async e=>{
   else { if(!confirm("Cancel this request?")) return; r=await sb.rpc("cancel_change",{p_id:Number(d.ccan)}); }
   if(r.error) alert(r.error.message); loadChg();
 });
+
+const FIN=l=>["Approved","Disbursed"].includes(l.status)&&l.final_finance_amount!=null;
+const effAmt=l=>FIN(l)?Number(l.final_finance_amount):Number(l.loan_amount);
+const amtBlock=l=>`<div class="amts">`+(FIN(l)?`<div class="amt">${peso(l.final_finance_amount)}<small>${l.status==="Disbursed"?"Booked amount":"Approved amount"}</small></div><div class="sub">Lead amount ${peso(l.loan_amount)}</div>`:`<div class="amt">${peso(l.loan_amount)}<small>Lead amount</small></div>`)+`</div>`;
+function detRows(l,own){
+  if(!["Approved","Disbursed"].includes(l.status)) return "";
+  const kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`, has=l.product_type!=null;
+  return (has?kv("Type of product",esc(l.product_type))+kv("Category",esc(l.product_category))+kv("Item price",peso(l.item_price))+kv("Downpayment",peso(l.downpayment))+kv("Finance amount",peso(l.final_finance_amount))+kv("Industry",esc(l.industry))+kv("Occupation",esc(l.occupation))+kv("With VAS",l.with_vas?"Yes":"No"):kv("Approval details","Not yet provided"))
+    +(own?`<p><button class="ghost" data-det="${l.id}">${has?"Edit":"Add"} approval details</button></p>`:"");
+}
+let DET=null;
+function numFmt(el){ const p=el.value.replace(/[^\d.]/g,"").split("."), i=p[0].replace(/^0+(?=\d)/,"").replace(/\B(?=(\d{3})+(?!\d))/g,","); el.value=p.length>1?i+"."+p.slice(1).join("").slice(0,2):i; }
+const numVal=v=>parseFloat(String(v).replace(/,/g,"")), fmtN=n=>n==null?"":Number(n).toLocaleString("en-US",{maximumFractionDigits:2});
+function openDet(id,status){
+  const l=leads.find(x=>x.id===id); if(!l) return; DET={id,status};
+  $("det_title").textContent=(status==="Disbursed"?"Booked":"Approved")+" lead: approval details";
+  $("d_type").value=l.product_type||""; $("d_cat").value=l.product_category||""; $("d_price").value=fmtN(l.item_price); $("d_dp").value=fmtN(l.downpayment);
+  $("d_fin").value=fmtN(l.final_finance_amount); $("d_fin").dataset.manual=l.final_finance_amount!=null?"1":"";
+  $("d_ind").value=l.industry||""; $("d_occ").value=l.occupation||""; $("d_vas").value=l.with_vas==null?"":(l.with_vas?"Y":"N");
+  $("d_msg").textContent=""; $("detDlg").showModal();
+}
+["d_price","d_dp","d_fin"].forEach(i=>$(i).addEventListener("input",e=>{ numFmt(e.target);
+  if(i==="d_fin") e.target.dataset.manual="1";
+  else if($("d_fin").dataset.manual!=="1"){ const v=Math.max((numVal($("d_price").value)||0)-(numVal($("d_dp").value)||0),0); $("d_fin").value=v?fmtN(v):""; } }));
+$("det_cancel").onclick=()=>{ $("detDlg").close(); render(); };
+$("detDlg").addEventListener("cancel",()=>render());
+$("det_save").onclick=async()=>{
+  const m=$("d_msg"); m.className="msg err";
+  const f={type:$("d_type").value.trim(),cat:$("d_cat").value.trim(),price:numVal($("d_price").value),dp:numVal($("d_dp").value),fin:numVal($("d_fin").value),ind:$("d_ind").value.trim(),occ:$("d_occ").value.trim(),vas:$("d_vas").value};
+  if(!f.type||!f.cat||!f.ind||!f.occ||!f.vas||!(f.price>0)||isNaN(f.dp)||f.dp<0||!(f.fin>0)){ m.textContent="Complete every field. Item price and finance amount must be above zero (downpayment can be 0)."; return; }
+  const {error}=await sb.rpc("save_lead_details",{p_lead:DET.id,p_status:DET.status,p_product_type:f.type,p_category:f.cat,p_item_price:f.price,p_downpayment:f.dp,p_final:f.fin,p_industry:f.ind,p_occupation:f.occ,p_vas:f.vas==="Y"});
+  if(error){ m.textContent=error.message; return; }
+  $("detDlg").close(); await load();
+};
+$("list").addEventListener("click",e=>{ const b=e.target.closest("[data-det]"); if(!b) return; const l=leads.find(x=>x.id==b.dataset.det); if(l) openDet(l.id,l.status); });
 
 let lastAct=Date.now();
 ["mousemove","keydown","click","touchstart","scroll"].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now();},{passive:true}));
