@@ -177,11 +177,12 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
   </main>
 </div>
 
-<dialog id="detDlg"><h2 id="det_title">Approval details</h2><p class="msg">Fill these in to mark the lead Approved or Booked. The finance amount is the final amount, and it is the one that gets added up.</p>
+<dialog id="detDlg"><h2 id="det_title">Approval details</h2><p class="msg">Fill these in to mark the lead Approved or Booked. The finance amount is the final amount, and it is the one that gets added up. For a Booked lead, the loan account number is also required.</p>
 <div class="grid"><label>Type of product<input id="d_type"></label><label>Category<input id="d_cat"></label>
 <label>Item price (₱)<input id="d_price" inputmode="decimal" autocomplete="off"></label><label>Downpayment (₱)<input id="d_dp" inputmode="decimal" autocomplete="off"></label>
 <label>Finance amount (₱)<input id="d_fin" inputmode="decimal" autocomplete="off"></label><label>Industry<input id="d_ind"></label>
-<label>Occupation<input id="d_occ"></label><label>With VAS<select id="d_vas"><option value="">Select</option><option value="Y">Yes</option><option value="N">No</option></select></label></div>
+<label>Occupation<input id="d_occ"></label><label>With VAS<select id="d_vas"><option value="">Select</option><option value="Y">Yes</option><option value="N">No</option></select></label>
+<label id="d_loanw" class="hide">Loan account number<input id="d_loan" autocomplete="off" autocapitalize="characters" placeholder="Required for a Booked lead"></label></div>
 <p><button id="det_save">Save</button> <button class="ghost" id="det_cancel">Cancel</button></p><div id="d_msg" class="msg"></div></dialog>
 <dialog id="reasonDlg"><h2>Reason for disabling</h2><p class="msg" id="rsnFor"></p><label>Reason<select id="rsn"><option>Resigned</option><option>Terminated</option><option>End of contract</option><option>Promoted</option><option>On leave</option><option>Other</option></select></label><p class="msg">Resigned, Terminated, End of contract and Promoted close the access for good. On leave and Other can be switched back on.</p><p><button id="rsnOk">Disable</button> <button class="ghost" id="rsnNo">Cancel</button></p></dialog>
 <dialog id="histDlg"><div id="histBody"></div><p><button id="histClose">Close</button></p></dialog>
@@ -321,8 +322,8 @@ $("list").addEventListener("change",async e=>{
 
 $("csv").onclick=()=>{
   if(!me||me.role!=="HO") return;
-  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Source","Status","Remarks","Final Finance Amount","Product Type","Category","Item Price","Downpayment","Industry","Occupation","With VAS"];
-  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,srcText(l),l.status,l.remarks,l.final_finance_amount,l.product_type,l.product_category,l.item_price,l.downpayment,l.industry,l.occupation,l.with_vas==null?"":(l.with_vas?"Yes":"No")].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
+  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Source","Status","Remarks","Final Finance Amount","Product Type","Category","Item Price","Downpayment","Industry","Occupation","With VAS","Loan Account No."];
+  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,srcText(l),l.status,l.remarks,l.final_finance_amount,l.product_type,l.product_category,l.item_price,l.downpayment,l.industry,l.occupation,l.with_vas==null?"":(l.with_vas?"Yes":"No"),l.loan_account_no].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([[head.join(","),...lines].join("\n")],{type:"text/csv"})); a.download="leads.csv"; a.click();
 };
 
@@ -623,12 +624,12 @@ document.body.addEventListener("click",async e=>{
 
 const FIN=l=>["Approved","Disbursed"].includes(l.status)&&l.final_finance_amount!=null;
 const effAmt=l=>FIN(l)?Number(l.final_finance_amount):Number(l.loan_amount);
-const amtBlock=l=>`<div class="amts">`+(FIN(l)?`<div class="amt">${peso(l.final_finance_amount)}<small>${l.status==="Disbursed"?"Booked amount":"Approved amount"}</small></div><div class="sub">Lead amount ${peso(l.loan_amount)}</div>`:`<div class="amt">${peso(l.loan_amount)}<small>Lead amount</small></div>`)+`</div>`;
+const amtBlock=l=>`<div class="amts">`+(FIN(l)?`<div class="amt">${peso(l.final_finance_amount)}<small>${l.status==="Disbursed"?"Booked amount":"Approved amount"}</small></div><div class="sub">Lead amount ${peso(l.loan_amount)}</div>${l.status==="Disbursed"&&l.loan_account_no?`<div class="sub">Loan A/C ${esc(l.loan_account_no)}</div>`:""}`:`<div class="amt">${peso(l.loan_amount)}<small>Lead amount</small></div>`)+`</div>`;
 function detRows(l,own){
   if(!["Approved","Disbursed"].includes(l.status)) return "";
   const kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`, has=l.product_type!=null;
-  return (has?kv("Type of product",esc(l.product_type))+kv("Category",esc(l.product_category))+kv("Item price",peso(l.item_price))+kv("Downpayment",peso(l.downpayment))+kv("Finance amount",peso(l.final_finance_amount))+kv("Industry",esc(l.industry))+kv("Occupation",esc(l.occupation))+kv("With VAS",l.with_vas?"Yes":"No"):kv("Approval details","Not yet provided"))
-    +(own?`<p><button class="ghost" data-det="${l.id}">${has?"Edit":"Add"} approval details</button></p>`:"");
+  return (has?kv("Type of product",esc(l.product_type))+kv("Category",esc(l.product_category))+kv("Item price",peso(l.item_price))+kv("Downpayment",peso(l.downpayment))+kv("Finance amount",peso(l.final_finance_amount))+kv("Industry",esc(l.industry))+kv("Occupation",esc(l.occupation))+kv("With VAS",l.with_vas?"Yes":"No")+(l.status==="Disbursed"?kv("Loan account no.",l.loan_account_no?esc(l.loan_account_no):"Not yet provided"):""):kv("Approval details","Not yet provided"))
+    +(own?`<p><button class="ghost" data-det="${l.id}">${has&&!(l.status==="Disbursed"&&!l.loan_account_no)?"Edit approval details":(has?"Add loan account number":"Add approval details")}</button></p>`:"");
 }
 let DET=null;
 function numFmt(el){ const p=el.value.replace(/[^\d.]/g,"").split("."), i=p[0].replace(/^0+(?=\d)/,"").replace(/\B(?=(\d{3})+(?!\d))/g,","); el.value=p.length>1?i+"."+p.slice(1).join("").slice(0,2):i; }
@@ -639,6 +640,7 @@ function openDet(id,status){
   $("d_type").value=l.product_type||""; $("d_cat").value=l.product_category||""; $("d_price").value=fmtN(l.item_price); $("d_dp").value=fmtN(l.downpayment);
   $("d_fin").value=fmtN(l.final_finance_amount); $("d_fin").dataset.manual=l.final_finance_amount!=null?"1":"";
   $("d_ind").value=l.industry||""; $("d_occ").value=l.occupation||""; $("d_vas").value=l.with_vas==null?"":(l.with_vas?"Y":"N");
+  $("d_loanw").classList.toggle("hide",status!=="Disbursed"); $("d_loan").value=l.loan_account_no||"";
   $("d_msg").textContent=""; $("detDlg").showModal();
 }
 ["d_price","d_dp","d_fin"].forEach(i=>$(i).addEventListener("input",e=>{ numFmt(e.target);
@@ -650,7 +652,8 @@ $("det_save").onclick=async()=>{
   const m=$("d_msg"); m.className="msg err";
   const f={type:$("d_type").value.trim(),cat:$("d_cat").value.trim(),price:numVal($("d_price").value),dp:numVal($("d_dp").value),fin:numVal($("d_fin").value),ind:$("d_ind").value.trim(),occ:$("d_occ").value.trim(),vas:$("d_vas").value};
   if(!f.type||!f.cat||!f.ind||!f.occ||!f.vas||!(f.price>0)||isNaN(f.dp)||f.dp<0||!(f.fin>0)){ m.textContent="Complete every field. Item price and finance amount must be above zero (downpayment can be 0)."; return; }
-  const {error}=await sb.rpc("save_lead_details",{p_lead:DET.id,p_status:DET.status,p_product_type:f.type,p_category:f.cat,p_item_price:f.price,p_downpayment:f.dp,p_final:f.fin,p_industry:f.ind,p_occupation:f.occ,p_vas:f.vas==="Y"});
+  if(DET.status==="Disbursed"&&!/^[A-Za-z0-9\/-]{5,30}$/.test($("d_loan").value.trim())){ m.textContent="Enter the loan account number (5 to 30 letters, numbers, dashes or slashes, no spaces)."; return; }
+  const {error}=await sb.rpc("save_lead_details",{p_lead:DET.id,p_status:DET.status,p_product_type:f.type,p_category:f.cat,p_item_price:f.price,p_downpayment:f.dp,p_final:f.fin,p_industry:f.ind,p_occupation:f.occ,p_vas:f.vas==="Y",p_loan_acct:DET.status==="Disbursed"?$("d_loan").value.trim():null});
   if(error){ m.textContent=error.message; return; }
   $("detDlg").close(); await load();
 };
