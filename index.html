@@ -127,7 +127,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 <div id="app" class="hide">
   <header><div class="logo"><b>Leads <i>Monitoring</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
   <main>
-    <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" data-tab="dash">Dashboard</button><button class="tab hide" id="tabReqBtn" data-tab="req">Access requests<span id="reqBadge"></span></button><button class="tab hide" id="tabChgBtn" data-tab="chg">Team changes<span id="chgBadge"></span></button><button class="tab hide" id="tabCodesBtn" data-tab="codes">Access codes<span id="codeBadge"></span></button></nav>
+    <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" id="tabDashBtn" data-tab="dash">Dashboard</button><button class="tab hide" id="tabReqBtn" data-tab="req">Access requests<span id="reqBadge"></span></button><button class="tab hide" id="tabChgBtn" data-tab="chg">Team changes<span id="chgBadge"></span></button><button class="tab hide" id="tabCodesBtn" data-tab="codes">Access codes<span id="codeBadge"></span></button><button class="tab hide" id="tabCollBtn" data-tab="coll">Collections callout<span id="collBadge"></span></button></nav>
     <div id="tabLeads">
     <section class="card hide" id="formCard">
       <h2>Add a customer lead</h2>
@@ -174,6 +174,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
     <div id="tabReq" class="hide"></div>
     <div id="tabChg" class="hide"></div>
     <div id="tabCodes" class="hide"></div>
+    <div id="tabColl" class="hide"></div>
   </main>
 </div>
 
@@ -184,6 +185,10 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 <label>Occupation<input id="d_occ"></label><label>With VAS<select id="d_vas"><option value="">Select</option><option value="Y">Yes</option><option value="N">No</option></select></label>
 <label id="d_loanw" class="hide">Loan account number<input id="d_loan" autocomplete="off" autocapitalize="characters" placeholder="Required for a Booked lead"></label></div>
 <p><button id="det_save">Save</button> <button class="ghost" id="det_cancel">Cancel</button></p><div id="d_msg" class="msg"></div></dialog>
+<dialog id="collDlg"><h2>Update call-out result</h2><p class="msg" id="cl_for"></p>
+<label>Result<select id="cl_out"><option value="">Select result</option><option value="DID_NOT_ANSWER">Did not answer</option><option value="PROMISE_TO_PAY">Promise to pay</option><option value="PAID">Paid</option><option value="WRONG_NUMBER">Wrong number</option><option value="DISPUTE">Disputes the amount</option></select></label>
+<label id="cl_dw" class="hide">Promised date<input type="date" id="cl_date"></label>
+<p><button id="cl_save">Save</button> <button class="ghost" id="cl_cancel">Cancel</button></p><div id="cl_msg" class="msg"></div></dialog>
 <dialog id="reasonDlg"><h2>Reason for disabling</h2><p class="msg" id="rsnFor"></p><label>Reason<select id="rsn"><option>Resigned</option><option>Terminated</option><option>End of contract</option><option>Promoted</option><option>On leave</option><option>Other</option></select></label><p class="msg">Resigned, Terminated, End of contract and Promoted close the access for good. On leave and Other can be switched back on.</p><p><button id="rsnOk">Disable</button> <button class="ghost" id="rsnNo">Cancel</button></p></dialog>
 <dialog id="histDlg"><div id="histBody"></div><p><button id="histClose">Close</button></p></dialog>
 <dialog id="dupDlg"><div id="dupBody"></div><p><button id="dupClose">Close</button></p></dialog>
@@ -231,6 +236,9 @@ async function boot(){
   if(me.role==="HO"){ $("fRsm").classList.remove("hide"); $("fRsm").innerHTML='<option value="">All RSMs</option>'+[...new Map(STRUCT.filter(x=>x.region_id).map(x=>[x.region_id,x])).values()].map(x=>`<option value="${x.region_id}">${esc(x.region_name)} (${esc(x.rsm_name||"Vacant")})</option>`).join(""); }
   if(["RSM","HO"].includes(me.role)){ $("tabReqBtn").classList.remove("hide"); loadReq(); }
   if(["TSM","RSM","HO"].includes(me.role)){ $("tabChgBtn").classList.remove("hide"); initChg(); loadChg(); $("tabCodesBtn").classList.remove("hide"); loadCodes(); }
+  FLAGS=(await sb.rpc("get_flags")).data||{};
+  if(me.role==="PROMOTER") $("tabDashBtn").classList.add("hide");
+  if(FLAGS.collections){ $("tabs").classList.remove("hide"); $("tabCollBtn").classList.remove("hide"); loadColl(); }
   await load();
 }
 function fillTsm(){ const r=$("fRsm").value; $("fTsm").innerHTML='<option value="">All TSMs</option>'+STRUCT.filter(x=>x.territory_id&&(!r||x.region_id===r)).map(x=>`<option value="${x.territory_id}">${esc(x.territory_name)} (${esc(x.tsm_name||"Vacant")})</option>`).join(""); }
@@ -364,8 +372,8 @@ function renderDash(){
 }
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return;
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); const k=b.dataset.tab;
-  $("tabLeads").classList.toggle("hide",k!=="leads"); $("tabDash").classList.toggle("hide",k!=="dash"); $("tabReq").classList.toggle("hide",k!=="req"); $("tabChg").classList.toggle("hide",k!=="chg"); $("tabCodes").classList.toggle("hide",k!=="codes");
-  if(k==="chg") loadChg(); if(k==="codes") loadCodes();
+  $("tabLeads").classList.toggle("hide",k!=="leads"); $("tabDash").classList.toggle("hide",k!=="dash"); $("tabReq").classList.toggle("hide",k!=="req"); $("tabChg").classList.toggle("hide",k!=="chg"); $("tabCodes").classList.toggle("hide",k!=="codes"); $("tabColl").classList.toggle("hide",k!=="coll");
+  if(k==="chg") loadChg(); if(k==="codes") loadCodes(); if(k==="coll") loadColl();
   if(k==="dash") renderDash(); if(k==="req") loadReq();});
 
 function showDup(){
@@ -416,8 +424,10 @@ function initAdmin(){
   <section class="card"><h2>Bulk upload users</h2><p class="msg">Download the template, fill it in, then check the file. Nothing is created until you press Create users. Each person's temporary password goes to their manager for handover. You will not see it.</p>
     <div class="bar"><button class="ghost" id="b_tpl">Download template</button><input type="file" id="b_file" accept=".csv"><button id="b_check">Check file</button></div>
     <div id="b_sum" class="msg"></div><div class="tablewrap"><table><thead id="b_head"></thead><tbody id="b_body"></tbody></table></div>
-    <p><button id="b_go" class="hide">Create users</button></p><div id="b_res" class="msg"></div></section>`;
-  { const secs=[...$("tabAdmin").children], defs=[["users","Users and access",2],["create","Create user",[0,6]],["codes","Access codes",5,"a_codeBadge"],["chg","Team changes",1,"a_chgBadge"],["struct","Structure",4],["audit","Audit extract",3]];
+    <p><button id="b_go" class="hide">Create users</button></p><div id="b_res" class="msg"></div></section>
+  <section class="card"><h2>Features</h2><p class="msg">Switch a feature on only when the bank has approved it.</p>
+    <div class="kv"><span><b>Collections callout</b><br><span class="sub">Head Office uploads overdue loan accounts. Promoters and TSMs see the accounts they should call.</span></span><label class="sw"><input type="checkbox" id="f_coll" aria-label="Collections callout"><span></span></label></div><div id="f_msg" class="msg"></div></section>`;
+  { const secs=[...$("tabAdmin").children], defs=[["users","Users and access",2],["create","Create user",[0,6]],["codes","Access codes",5,"a_codeBadge"],["chg","Team changes",1,"a_chgBadge"],["struct","Structure",4],["audit","Audit extract",3],["settings","Settings",7]];
     const nav=document.createElement("nav"); nav.className="tabs"; nav.id="a_tabs";
     nav.innerHTML=defs.map((d,i)=>`<button class="tab${i?"":" on"}" data-at="${d[0]}">${d[1]}${d[3]?`<span id="${d[3]}"></span>`:""}</button>`).join("");
     const panes=defs.map((d,i)=>{ const p=document.createElement("div"); p.dataset.pane=d[0]; if(i) p.classList.add("hide"); [].concat(d[2]).forEach(i=>p.appendChild(secs[i])); return p; });
@@ -446,7 +456,7 @@ function initAdmin(){
     const csv=[["Date and time (Manila)","Access ID","Name","Access type","Event","Done by","Details"].map(q).join(","),...data.map(r=>[new Date(r.happened_at).toLocaleString("en-PH",{timeZone:"Asia/Manila",hour12:false}),r.ref,r.full_name,RN[r.role],r.event,r.by_name,r.detail].map(q).join(","))].join("\n");
     const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download=`access-audit_${f}_to_${t}.csv`; a.click();
     m.className="msg good"; m.textContent=data.length+" record(s) extracted."; };
-  initBulk(); loadCodes();
+  initBulk(); loadCodes(); initFlags();
   loadAdmin();
 }
 async function loadAdmin(){ const {data,error}=await sb.rpc("admin_list_users"); if(error){ alert(error.message); return; } adm=data; renderAdmin(); loadStruct(); loadChg(); }
@@ -727,6 +737,130 @@ function initBulk(){
     BROWS=[]; $("b_go").classList.add("hide"); $("b_body").innerHTML=""; $("b_head").innerHTML=""; $("b_file").value=""; $("b_sum").textContent=""; loadAdmin(); loadCodes();
   };
 }
+
+let FLAGS={}, COLL=[], CUP=[], CROWS=[], cshown=null, cTimer, CDLG=null;
+const CST={TO_CALL:["To call","h-Warm"],DID_NOT_ANSWER:["Did not answer","s-DISABLED"],PROMISE_TO_PAY:["Promise to pay","h-POOL"],PAID:["Paid","s-ACTIVE"],WRONG_NUMBER:["Wrong number","s-LOCKED"],DISPUTE:["Disputes the amount","s-LOCKED"]};
+const dueTxt=c=>"Due "+new Date(c.due_on+"T00:00:00Z").toLocaleDateString("en-PH",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"})+" · "+(c.dpd>0?c.dpd+" day"+(c.dpd>1?"s":"")+" past due":"not yet due");
+async function initFlags(){
+  const {data}=await sb.rpc("get_flags"); $("f_coll").checked=!!(data&&data.collections);
+  $("f_coll").onchange=async e=>{ const on=e.target.checked;
+    if(on&&!confirm("Switch on Collections callout? Promoters and TSMs will see the overdue account details. Do this only after Tonik has approved it.")){ e.target.checked=false; return; }
+    const {error}=await sb.rpc("admin_set_flag",{p_key:"collections",p_value:on});
+    $("f_msg").className=error?"msg err":"msg good"; $("f_msg").textContent=error?error.message:"Collections callout is now "+(on?"ON":"OFF")+"."; if(error) e.target.checked=!on; };
+}
+function buildColl(){
+  const ho=me.role==="HO", team=me.role!=="PROMOTER";
+  $("tabColl").innerHTML=`<section class="card"><h2>Collections callout</h2>
+    <p class="msg">${me.role==="PROMOTER"?"These are customers you brought in whose loan payments are overdue. Please remind them and record the result.":me.role==="TSM"?"Overdue accounts in your territory. Please remind the customers, or reassign a case to one of your promoters.":"Overdue accounts from the bank. Totals and status only."} Be respectful: no threats, no sharing the debt with anyone but the customer, and no calls at unreasonable hours. Report anything unusual to your TSM or Head Office.</p>
+    <div class="stats" id="cl_stats"></div></section>`+
+   (ho?`<section class="card"><h2>Upload overdue accounts</h2><p class="msg">Columns: loan_account_no, amount_past_due, due_date (written YYYY-MM-DD). Accounts already on the list get the new amount and due date, and a Paid account that appears again is reopened. Nothing is removed by an upload.</p>
+    <div class="bar"><button class="ghost" id="cu_tpl">Download template</button><input type="file" id="cu_file" accept=".csv"><button id="cu_check">Check file</button></div>
+    <div id="cu_sum" class="msg"></div><div class="tablewrap"><table><thead id="cu_head"></thead><tbody id="cu_body"></tbody></table></div>
+    <p><button id="cu_go" class="hide">Upload</button></p><div id="cu_res" class="msg"></div><h2 style="font-size:15px;margin-top:18px">Recent uploads</h2><div id="cu_hist" class="sub"></div></section>`:"")+
+   `<section class="card"><h2 id="cl_title">Accounts</h2><div class="bar"><input id="cl_q" placeholder="Search name or loan account">
+    <select id="cl_f"><option value="OPEN">All open</option><option value="TO_CALL">To call</option><option value="DID_NOT_ANSWER">Did not answer</option><option value="PROMISE_TO_PAY">Promise to pay</option><option value="BROKEN">Broken promise</option><option value="WRONG_NUMBER">Wrong number</option><option value="DISPUTE">Disputes the amount</option><option value="PAID">Paid (last 30 days)</option><option value="STALE">No update for 60 days</option><option value="ALL">Everything</option></select>
+    <select id="cl_t" class="hide"></select>${ho?'<button class="ghost" id="cl_csv">Export CSV</button>':""}</div>
+    <div class="cards" id="cl_list"></div><div id="cl_empty" class="msg"></div></section>`+
+   (ho?`<section class="card"><h2>Waiting for a match</h2><p class="msg">Loan accounts from the bank that are not on any lead yet. They attach automatically when a promoter or TSM enters the number on the lead.</p><div class="tablewrap"><table><thead><tr><th>Loan account</th><th>Amount past due</th><th>Due date</th></tr></thead><tbody id="cl_wait"></tbody></table></div></section>`:"");
+  ["cl_q","cl_f","cl_t"].forEach(i=>$(i).addEventListener("input",renderColl));
+  if(ho) wireCollUpload();
+}
+function wireCollUpload(){
+  $("cu_tpl").onclick=()=>{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(["loan_account_no,amount_past_due,due_date\nLA-2026-000123,4500.00,2026-10-15\n"],{type:"text/csv"})); a.download="overdue-accounts-template.csv"; a.click(); };
+  $("cu_check").onclick=async()=>{
+    const m=$("cu_sum"), f=$("cu_file").files[0]; m.className="msg err"; $("cu_res").textContent=""; $("cu_go").classList.add("hide"); $("cu_body").innerHTML=""; $("cu_head").innerHTML="";
+    if(!f){ m.textContent="Choose a CSV file first."; return; }
+    const t=parseCSV(await f.text()); if(t.length<2){ m.textContent="The file has no rows."; return; }
+    const A={loan_account_no:"loan",loan_account:"loan",lan:"loan",loan:"loan",amount_past_due:"amount",amount:"amount",past_due:"amount",due_date:"due",due:"due"}, idx={};
+    t[0].forEach((h,i)=>{ const k=A[h.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_")]; if(k) idx[k]=i; });
+    if(!("loan" in idx)||!("amount" in idx)||!("due" in idx)){ m.textContent="The file needs the columns loan_account_no, amount_past_due and due_date. Use the template."; return; }
+    if(t.length-1>5000){ m.textContent="Up to 5,000 rows per file."; return; }
+    CROWS=t.slice(1).map(r=>({loan:(r[idx.loan]||"").trim(),amount:(r[idx.amount]||"").trim(),due:(r[idx.due]||"").trim()}));
+    const {data,error}=await sb.rpc("collections_check",{p_rows:CROWS}); if(error){ m.textContent=error.message; return; }
+    const bad=data.filter(x=>!x.ok).length, cnt=a=>data.filter(x=>x.action===a).length, mt=data.filter(x=>x.ok&&x.matched_to).length;
+    $("cu_head").innerHTML="<tr><th>Row</th><th>Loan account</th><th>Result</th><th>What will happen</th><th>Matched to</th></tr>";
+    $("cu_body").innerHTML=data.slice(0,200).map(x=>`<tr><td data-label="Row">${x.row_no+1}</td><td data-label="Loan account">${esc(x.loan)}</td><td data-label="Result"><span class="pill ${x.ok?"s-ACTIVE":"s-LOCKED"}">${esc(x.message)}</span></td><td data-label="What will happen">${({NEW:"Add",UPDATE:"Update",REOPEN:"Reopen"})[x.action]||"—"}</td><td data-label="Matched to">${x.ok?(x.matched_to?esc(x.matched_to):"No match yet (will wait)"):"—"}</td></tr>`).join("");
+    m.className=bad?"msg err":"msg good";
+    m.textContent=bad?`${bad} row(s) need fixing. Nothing was uploaded.`:`${data.length} row(s) ready: ${cnt("NEW")} to add, ${cnt("UPDATE")} to update, ${cnt("REOPEN")} to reopen. ${mt} matched to a customer, ${data.length-mt} waiting for a match.`+(data.length>200?" (Showing the first 200 rows.)":"");
+    if(!bad) $("cu_go").classList.remove("hide");
+  };
+  $("cu_go").onclick=async()=>{
+    if(!CROWS.length||!confirm(`Upload ${CROWS.length} account(s)?`)) return;
+    const r=$("cu_res"); r.className="msg"; r.textContent="Uploading…";
+    const {data,error}=await sb.rpc("collections_upload",{p_rows:CROWS}); if(error){ r.className="msg err"; r.textContent=error.message; return; }
+    r.className="msg good"; r.textContent=`Done: ${data.new} added, ${data.updated} updated, ${data.reopened} reopened. ${data.matched} matched to customers, ${data.unmatched} waiting for a match.`;
+    CROWS=[]; $("cu_go").classList.add("hide"); $("cu_body").innerHTML=""; $("cu_head").innerHTML=""; $("cu_file").value=""; $("cu_sum").textContent=""; loadColl();
+  };
+  $("cl_csv").onclick=()=>{
+    const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    const rows=COLL.map(c=>[c.loan_acct,c.cust_name,c.territory,c.assignee,c.amount,c.due_on,c.dpd,(CST[c.state]||[c.state])[0],c.promise_on,c.attempts,c.last_at,c.paid_on,c.matched?"Yes":"No"]);
+    const csv=[["Loan Account","Customer","Territory","Assigned To","Amount Past Due","Due Date","Days Past Due","Status","Promise Date","Attempts","Last Update","Paid On","Matched"].map(q).join(","),...rows.map(r=>r.map(q).join(","))].join("\n");
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"})); a.download="collections-callout.csv"; a.click();
+  };
+}
+async function loadColl(){
+  const {data,error}=await sb.rpc("my_collections");
+  if(error){ $("tabColl").innerHTML=`<section class="card"><p class="msg err">Could not load Collections callout: ${esc(error.message)}</p></section>`; return; }
+  COLL=data; $("collBadge").textContent=(n=>n?" ("+n+")":"")(COLL.filter(c=>c.mine&&c.matched&&(c.state==="TO_CALL"||c.broken)).length);
+  if(me.role==="HO"){ const r=await sb.rpc("collections_uploads_list"); CUP=r.data||[]; }
+  renderColl();
+}
+function collCard(c,team){
+  const on=cshown===c.case_id, st=CST[c.state]||[c.state,""], canTsm=me.role==="TSM";
+  const mob=c.cust_mobile?(on?esc(c.cust_mobile):"•••• ••• ••••")+`<button class="eye" data-ceye="${c.case_id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"";
+  const opts=canTsm?Object.values(people).filter(p=>p.role==="PROMOTER"&&p.status==="ACTIVE"&&p.territory_id===c.terr_id).map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join(""):"";
+  return `<article class="lead${c.broken?" dup":""}"><div class="top"><div><b>${on?"••••••••":esc(c.cust_name)}</b><div class="mob">${mob}</div></div>
+    <div class="amts"><div class="amt">${peso(c.amount)}<small>Past due</small></div>${c.prev_amount!=null&&Number(c.prev_amount)!==Number(c.amount)?`<div class="sub">was ${peso(c.prev_amount)}</div>`:""}</div></div>
+    <div class="meta">Loan A/C ${esc(c.loan_acct)} · ${esc(c.product||"")}</div>
+    <div class="row"><span class="pill ${st[1]}">${st[0]}</span>${c.broken?'<span class="pill s-LOCKED">Broken promise</span>':""}${c.stale?'<span class="pill s-DISABLED">No update for 60 days</span>':""}</div>
+    <div class="sub">${dueTxt(c)}${c.state==="PROMISE_TO_PAY"&&c.promise_on?" · promised "+new Date(c.promise_on+"T00:00:00Z").toLocaleDateString("en-PH",{day:"numeric",month:"short",timeZone:"UTC"}):""}</div>
+    <div class="sub">${c.attempts} update${c.attempts===1?"":"s"}${c.last_at?" · last "+fmtD(c.last_at):""}${c.state==="PAID"&&c.paid_on?" · paid "+fmtD(c.paid_on):""}</div>
+    ${team?`<div class="prom">Assigned to ${esc(c.assignee||"nobody yet")}${c.territory?" · "+esc(c.territory):""}</div>`:""}
+    ${c.can_update?`<p><button data-cupd="${c.case_id}">Update result</button></p>`:""}
+    ${canTsm?`<div class="prom"><select data-cassign="${c.case_id}" aria-label="Reassign to a promoter"><option value="">Reassign to…</option>${opts}<option value="__clear">Back to the default</option></select></div>`:""}
+    ${me.role==="HO"?`<p>${c.state==="PAID"?`<button class="ghost" data-hoc="${c.case_id}:TO_CALL">Reopen</button>`:`<button class="ghost" data-hoc="${c.case_id}:PAID">Mark paid</button>`}</p>`:""}</article>`;
+}
+function renderColl(){
+  if(!$("cl_list")) buildColl();
+  const team=me.role!=="PROMOTER", q=$("cl_q").value.toLowerCase(), f=$("cl_f").value, tf=$("cl_t").value;
+  const matched=COLL.filter(c=>c.matched), open=matched.filter(c=>c.state!=="PAID"), sum=a=>a.reduce((t,c)=>t+Number(c.amount),0);
+  $("cl_stats").innerHTML=`<div>Open cases<strong>${open.length}</strong></div><div>Amount past due<strong>${peso(sum(open))}</strong></div><div>To call<strong>${open.filter(c=>c.state==="TO_CALL").length}</strong></div><div>Promised to pay<strong>${open.filter(c=>c.state==="PROMISE_TO_PAY").length}</strong></div><div>Broken promises<strong>${open.filter(c=>c.broken).length}</strong></div><div>Paid (last 30 days)<strong>${matched.filter(c=>c.state==="PAID").length}</strong></div>`+(me.role==="HO"?`<div>Waiting for a match<strong>${COLL.filter(c=>!c.matched).length}</strong></div>`:"");
+  const ters=[...new Map(matched.filter(c=>c.terr_id).map(c=>[c.terr_id,c.territory])).entries()];
+  if(team&&ters.length>1){ const keep=$("cl_t").value; $("cl_t").classList.remove("hide"); $("cl_t").innerHTML='<option value="">All territories</option>'+ters.map(t=>`<option value="${t[0]}"${t[0]===keep?" selected":""}>${esc(t[1])}</option>`).join(""); }
+  const rows=matched.filter(c=>(f==="ALL"||(f==="OPEN"?c.state!=="PAID":f==="BROKEN"?c.broken:f==="STALE"?c.stale:c.state===f))&&(!tf||c.terr_id===tf)&&(!q||((c.cust_name||"")+" "+c.loan_acct).toLowerCase().includes(q)));
+  $("cl_title").textContent=me.role==="PROMOTER"?"My accounts to call":me.role==="TSM"?"Accounts in my territory":"Accounts";
+  $("cl_list").innerHTML=rows.map(c=>collCard(c,team)).join("");
+  $("cl_empty").textContent=rows.length?"":"No accounts to show.";
+  if(me.role==="HO"){
+    $("cl_wait").innerHTML=COLL.filter(c=>!c.matched).map(c=>`<tr><td data-label="Loan account">${esc(c.loan_acct)}</td><td data-label="Amount past due">${peso(c.amount)}</td><td data-label="Due date">${esc(c.due_on)}</td></tr>`).join("")||'<tr><td colspan="3">Nothing is waiting.</td></tr>';
+    $("cu_hist").innerHTML=CUP.length?CUP.map(u=>`${fmtD(u.up_at)} · ${esc(u.up_by||"")} · ${u.up_total} rows (${u.up_new} new, ${u.up_updated} updated, ${u.up_reopened} reopened, ${u.up_unmatched} waiting)`).join("<br>"):"No uploads yet.";
+  }
+}
+function openCollDlg(id){
+  const c=COLL.find(x=>x.case_id===id); if(!c) return; CDLG=id;
+  $("cl_for").textContent=`Loan account ${c.loan_acct} · ${peso(c.amount)} past due`; $("cl_out").value=""; $("cl_date").value=""; $("cl_dw").classList.add("hide"); $("cl_msg").textContent="";
+  $("cl_date").min=new Date().toLocaleDateString("en-CA",{timeZone:"Asia/Manila"}); $("collDlg").showModal();
+}
+$("cl_out").onchange=()=>$("cl_dw").classList.toggle("hide",$("cl_out").value!=="PROMISE_TO_PAY");
+$("cl_cancel").onclick=()=>$("collDlg").close();
+$("cl_save").onclick=async()=>{
+  const m=$("cl_msg"), o=$("cl_out").value, d=$("cl_date").value; m.className="msg err";
+  if(!o){ m.textContent="Choose a result."; return; }
+  if(o==="PROMISE_TO_PAY"&&!d){ m.textContent="Pick the date the customer promised to pay."; return; }
+  const {error}=await sb.rpc("collection_set_outcome",{p_case:CDLG,p_outcome:o,p_promise:o==="PROMISE_TO_PAY"?d:null}); if(error){ m.textContent=error.message; return; }
+  $("collDlg").close(); loadColl();
+};
+document.body.addEventListener("click",async e=>{
+  const ey=e.target.closest("[data-ceye]"), up=e.target.closest("[data-cupd]"), ho=e.target.closest("[data-hoc]");
+  if(ey){ const id=Number(ey.dataset.ceye); cshown=cshown===id?null:id; clearTimeout(cTimer); if(cshown!==null) cTimer=setTimeout(()=>{ cshown=null; renderColl(); },15000); renderColl(); return; }
+  if(up){ openCollDlg(Number(up.dataset.cupd)); return; }
+  if(ho){ const [id,st]=ho.dataset.hoc.split(":"); if(!confirm(st==="PAID"?"Mark this case as paid?":"Reopen this case?")) return;
+    const {error}=await sb.rpc("ho_collection_set",{p_case:Number(id),p_state:st}); if(error) alert(error.message); loadColl(); }
+});
+document.body.addEventListener("change",async e=>{
+  const a=e.target.dataset&&e.target.dataset.cassign; if(!a||!e.target.value) return;
+  const {error}=await sb.rpc("collection_assign",{p_case:Number(a),p_promoter:e.target.value==="__clear"?null:e.target.value}); if(error) alert(error.message); loadColl();
+});
 
 let lastAct=Date.now();
 ["mousemove","keydown","click","touchstart","scroll"].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now();},{passive:true}));
