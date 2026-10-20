@@ -83,6 +83,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 #login a{color:var(--brand);font-weight:600;font-size:14px}
 .tabs{flex-wrap:wrap}.amts{text-align:right}.amt small{display:block;font-size:11px;font-weight:500;color:var(--mute)}
 #setcode{min-height:100vh;display:grid;place-items:center;padding:20px}#setcode .box{width:100%;max-width:420px;background:var(--card);border-radius:24px;padding:30px}#setcode h1{margin:0 0 4px;font-size:24px}#setcode p.sub{margin:0 0 16px;color:var(--mute)}
+.pwrow{position:relative}.pwrow input{padding-right:46px}.pwrow .eye{position:absolute;right:8px;top:calc(50% + 2px);transform:translateY(-50%);margin:0}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -95,13 +96,18 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 <body>
 
 <section id="login" class="hide"><div class="box">
-  <div class="brand">Leads <i>Monitoring</i><small>by PurpleHub</small></div><h1>Hey, welcome back!</h1><p class="sub">Enter your Access ID, a dash, then your personal code. First time? Use the activation code your manager gave you.</p>
-  <label>Access code<input id="code" autocomplete="off" autocapitalize="characters" placeholder="e.g. PRO-1003-YOURCODE"></label>
-  <p><button id="loginBtn">Let me in</button></p>
+  <div class="brand">Leads <i>Monitoring</i><small>by PurpleHub</small></div><h1>Hey, welcome back!</h1><p class="sub">Enter your Access ID and password. First time? Use the Access ID and temporary password your manager gave you.</p>
+  <form id="loginForm" autocomplete="on">
+    <label for="aid">Access ID</label>
+    <input id="aid" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="e.g. PRO-000123"><br><br>
+    <label for="pw">Password</label>
+    <div class="pwrow"><input id="pw" name="password" type="password" autocomplete="current-password"><button type="button" class="eye" id="pwEye" aria-label="Show password"></button></div>
+    <p><button type="submit" id="loginBtn">Let me in</button></p>
+  </form>
   <div id="loginMsg" class="msg err"></div>
-  <p><a href="#" id="rstLink">Need a new access code? Request a reset</a></p>
+  <p><a href="#" id="rstLink">Forgot your password or locked out? Request a reset</a></p>
   <div id="rstBox" class="hide">
-    <label>Your Access ID (first part of your code, e.g. PRO-1003)<input id="r_ref" autocomplete="off" autocapitalize="characters"></label><br>
+    <label>Your Access ID (for example PRO-000123)<input id="r_ref" autocomplete="off" autocapitalize="characters"></label><br>
     <label>Full name (as registered)<input id="r_name"></label><br>
     <label>Reason (optional)<input id="r_why"></label>
     <p><button id="rstBtn">Send request to my RSM</button></p><div id="rstMsg" class="msg"></div></div>
@@ -109,11 +115,13 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 
 <section id="setcode" class="hide"><div class="box">
   <div class="brand">Leads <i>Monitoring</i><small>by PurpleHub</small></div>
-  <h1>Set your personal code</h1>
-  <p class="sub">The code you were given works only once. Choose your own personal code now. You will log in with your Access ID, a dash and this code, for example PRO-1003-YOURCODE.</p>
-  <label>New personal code<input id="sc_a" type="password" autocomplete="new-password" autocapitalize="characters"></label><br>
-  <label>Type it again<input id="sc_b" type="password" autocomplete="new-password" autocapitalize="characters"></label>
-  <p class="msg">8 to 32 letters and numbers, with at least one letter and one number. Capital letters do not matter. Keep it private.</p>
+  <h1>Set your password</h1>
+  <p class="sub">Choose your own password now. The password you just used works only this once. From now on you log in with your Access ID and this password.</p>
+  <label for="sc_a">New password</label>
+  <div class="pwrow"><input id="sc_a" type="password" autocomplete="new-password"><button type="button" class="eye" id="scEye" aria-label="Show password"></button></div><br>
+  <label for="sc_b">Type it again</label>
+  <div class="pwrow"><input id="sc_b" type="password" autocomplete="new-password"></div>
+  <div id="sc_rules" class="sub" style="margin:12px 0"></div>
   <p><button id="sc_go">Save and continue</button></p><div id="sc_msg" class="msg err"></div></div></section>
 
 <div id="app" class="hide">
@@ -196,7 +204,7 @@ const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">
 
 async function boot(){
   const {data:{session}} = await sb.auth.getSession();
-  if(!session){ $("loginMsg").textContent=sessionStorage.getItem("idleMsg")?"You were signed out after 4 minutes of inactivity. Please log in again.":""; sessionStorage.removeItem("idleMsg"); { const pc=sessionStorage.getItem("pcMsg"); if(pc){ $("loginMsg").className="msg good"; $("loginMsg").textContent="Personal code saved. Log in with "+pc+"- followed by your personal code."; sessionStorage.removeItem("pcMsg"); } } $("login").classList.remove("hide"); $("app").classList.add("hide"); return; }
+  if(!session){ $("loginMsg").textContent=sessionStorage.getItem("idleMsg")?"You were signed out after 4 minutes of inactivity. Please log in again.":""; sessionStorage.removeItem("idleMsg"); { const pc=sessionStorage.getItem("pcMsg"); if(pc){ $("loginMsg").className="msg good"; $("loginMsg").textContent="Password saved. Log in with Access ID "+pc+" and your new password."; sessionStorage.removeItem("pcMsg"); } } $("login").classList.remove("hide"); $("app").classList.add("hide"); return; }
   { const {data:mc}=await sb.rpc("my_must_change"); if(mc){ $("login").classList.add("hide"); $("app").classList.add("hide"); $("setcode").classList.remove("hide"); return; } }
   const {data:profs,error} = await sb.from("profiles").select("*");
   if(error||!profs.length){ await sb.auth.signOut(); $("loginMsg").textContent="No profile set up for this account. Contact Head Office."; $("login").classList.remove("hide"); return; }
@@ -263,17 +271,22 @@ function render(){
   if(!$("tabDash").classList.contains("hide")) renderDash();
 }
 
-$("loginBtn").onclick=async()=>{
+$("loginForm").addEventListener("submit",async e=>{
+  e.preventDefault();
   const m=$("loginMsg"); m.textContent=""; m.className="msg err";
-  const code=$("code").value.trim().toUpperCase();
-  if(!code){ m.textContent="Enter your access code."; return; }
-  const {error}=await sb.auth.signInWithPassword({email:code.split("-").slice(0,2).join("-").toLowerCase()+"@codes.example.com",password:code});
+  const id=$("aid").value.trim().toUpperCase().replace(/\s+/g,""), pw=$("pw").value;
+  if(!id||!pw){ m.textContent="Enter your Access ID and password."; return; }
+  const email=id.toLowerCase()+"@codes.example.com", tries=[pw];
+  if(pw!==pw.toUpperCase()) tries.push(pw.toUpperCase());      // temporary passwords are shown in capitals
+  tries.push(id+"-"+pw.toUpperCase());                         // codes issued before this update
+  let error=null;
+  for(const t of [...new Set(tries)]){ const r=await sb.auth.signInWithPassword({email,password:t}); error=r.error; if(!error) break; }
   if(!error){ await sb.rpc("login_ok"); boot(); return; }
   if(/invalid login|banned/i.test(error.message)){
-    const {data}=await sb.rpc("login_failed",{p_ref:code.split("-").slice(0,2).join("-")}), st=data?.status;
-    m.textContent=st==="LOCKED"?"This access is LOCKED due to multiple retries. Please contact the Admin.":st==="DISABLED"?"Your access is disabled. Please contact the Admin.":st==="ACTIVE"?`Access code not recognized. ${data.left} attempt(s) left before this access is locked.`:"Access code not recognized.";
+    const {data}=await sb.rpc("login_failed",{p_ref:id}), st=data&&data.status;
+    m.textContent=st==="LOCKED"?"This access is LOCKED due to multiple retries. Please contact the Admin.":st==="DISABLED"?"Your access is disabled. Please contact the Admin.":st==="ACTIVE"?`Access ID or password not recognized. ${data.left} attempt(s) left before this access is locked.`:"Access ID or password not recognized.";
   } else m.textContent="Error: "+error.message;
-};
+});
 $("logout").onclick=async()=>{await sb.auth.signOut(); location.reload();};
 
 $("f_amt").addEventListener("input",e=>{const p=e.target.value.replace(/[^\d.]/g,"").split(".");const i=p[0].replace(/^0+(?=\d)/,"").replace(/\B(?=(\d{3})+(?!\d))/g,",");e.target.value=p.length>1?i+"."+p.slice(1).join("").slice(0,2):i;});
@@ -394,12 +407,12 @@ function initAdmin(){
     <div class="tablewrap"><table><thead><tr><th><input type="checkbox" id="a_all" aria-label="Select all"></th><th>Name</th><th>Access type</th><th>Reports to</th><th>Status</th><th>Access ID</th><th>Activation</th><th>Access</th><th>Details</th></tr></thead><tbody id="a_body"></tbody></table></div></section>
   <section class="card"><h2>Audit extract</h2><p class="msg">Download the access history (created, locked, reset requested, approved by RSM, enabled, disabled) for a date range.</p>
     <div class="grid"><label>From<input type="date" id="x_from"></label><label>To<input type="date" id="x_to"></label>
-    <label>Event<select id="x_ev"><option value="">All events</option><option value="CREATED">Created</option><option value="LOCKED">Locked</option><option value="RESET_REQUESTED">Reset requested</option><option value="RESET_APPROVED">Approved by RSM</option><option value="RESET_REJECTED">Rejected by RSM</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option><option value="POSITION_REQUESTED">Position change requested</option><option value="POSITION_APPROVED">Position change approved</option><option value="POSITION_EXECUTED">Position change executed</option><option value="CODE_VIEWED">Activation code viewed</option><option value="CODE_HANDED_OVER">Activation code handed over</option><option value="ACTIVATED">Personal code set (activated)</option></select></label></div>
+    <label>Event<select id="x_ev"><option value="">All events</option><option value="CREATED">Created</option><option value="LOCKED">Locked</option><option value="RESET_REQUESTED">Reset requested</option><option value="RESET_APPROVED">Approved by RSM</option><option value="RESET_REJECTED">Rejected by RSM</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option><option value="POSITION_REQUESTED">Position change requested</option><option value="POSITION_APPROVED">Position change approved</option><option value="POSITION_EXECUTED">Position change executed</option><option value="CODE_VIEWED">Temporary password viewed</option><option value="CODE_HANDED_OVER">Temporary password handed over</option><option value="ACTIVATED">Password set (activated)</option></select></label></div>
     <p><button id="x_go">Extract CSV</button></p><div id="x_msg" class="msg"></div></section>
   <section class="card"><h2>Structure: regions and territories</h2><p class="msg">Each region belongs to an RSM and each territory to a TSM. Leads stay with their territory and region.</p>
     <div class="tablewrap"><table><thead><tr><th>Region</th><th>RSM</th><th>Territory</th><th>TSM</th><th>Promoters</th></tr></thead><tbody id="s_body"></tbody></table></div></section>
   <section class="card"><h2>Access codes waiting for you</h2><div id="codes_a"></div></section>
-  <section class="card"><h2>Bulk upload users</h2><p class="msg">Download the template, fill it in, then check the file. Nothing is created until you press Create users. Each person's activation code goes to their manager for handover. You will not see it.</p>
+  <section class="card"><h2>Bulk upload users</h2><p class="msg">Download the template, fill it in, then check the file. Nothing is created until you press Create users. Each person's temporary password goes to their manager for handover. You will not see it.</p>
     <div class="bar"><button class="ghost" id="b_tpl">Download template</button><input type="file" id="b_file" accept=".csv"><button id="b_check">Check file</button></div>
     <div id="b_sum" class="msg"></div><div class="tablewrap"><table><thead id="b_head"></thead><tbody id="b_body"></tbody></table></div>
     <p><button id="b_go" class="hide">Create users</button></p><div id="b_res" class="msg"></div></section>`;
@@ -414,7 +427,7 @@ function initAdmin(){
   $("a_create").onclick=async()=>{ const m=$("a_res"), name=$("a_name").value.trim(), role=$("a_role").value, mgr=$("a_mgr").value||null; m.className="msg err";
     if(!name||!role||(["TSM","PROMOTER"].includes(role)&&!mgr)){ m.textContent="Enter the name, the access type and who they report to."; return; }
     const {data,error}=await sb.rpc("admin_create_user",{p_name:name,p_role:role,p_manager:mgr,p_unit:$("a_unit").value.trim()||null}); if(error){ m.textContent=error.message; return; }
-    m.className="msg good"; m.innerHTML=`Created ${esc(name)}. Access ID: <b class="codebox">${esc(data)}</b><br>The activation code was sent ${({HO:"to you (see the Access codes tab)",RSM:"to Head Office",TSM:"to their RSM",PROMOTER:"to their TSM"})[role]} for handover. You can follow its status in the user list.`;
+    m.className="msg good"; m.innerHTML=`Created ${esc(name)}. Access ID: <b class="codebox">${esc(data)}</b><br>The temporary password was sent ${({HO:"to you (see the Access codes tab)",RSM:"to Head Office",TSM:"to their RSM",PROMOTER:"to their TSM"})[role]} for handover. You can follow its status in the user list.`;
     $("a_name").value=""; $("a_role").value=""; $("a_mgrw").classList.add("hide"); $("a_unitw").classList.add("hide"); $("a_unit").value=""; await loadAdmin(); };
   ["a_q","a_f"].forEach(i=>$(i).addEventListener("input",renderAdmin));
   $("a_all").onchange=e=>{ const vis=adminRows().filter(u=>u.id!==me.id).map(u=>u.id); vis.forEach(id=>e.target.checked?sel.add(id):sel.delete(id)); renderAdmin(); };
@@ -442,12 +455,12 @@ async function setAccess(ids,en,ask){
   const {data,error}=await sb.rpc("admin_set_status",{p_ids:ids,p_enable:en,p_reason:why}); if(error) alert(error.message); else showEnable(data,en); sel.clear(); await loadAdmin();
 }
 function showEnable(r,en){ const m=$("a_notice"); m.className="msg good"; let h="";
-  if(en&&r&&r.reissued) h+=`<b>${r.reissued} new activation code(s) were sent to the managers for handover.</b>`;
+  if(en&&r&&r.reissued) h+=`<b>${r.reissued} new temporary password(s) were sent to the managers for handover.</b>`;
   if(en&&r&&r.skipped) h+=`<br>${r.skipped} user(s) were not enabled. Locked users need an RSM-approved reset request, and closed accesses (Resigned, Terminated, End of contract, Promoted) need a rehire.`;
   m.innerHTML=h; }
 async function openHist(id){
   const u=adm.find(x=>x.id===id), {data,error}=await sb.rpc("admin_history",{p_user:id}); if(error){ alert(error.message); return; }
-  const L={CREATED:"Access created",LOCKED:"Locked (multiple wrong attempts)",DISABLED:"Disabled by Admin",RESET_REQUESTED:"Reset requested",RESET_APPROVED:"Approved by RSM",RESET_REJECTED:"Rejected by RSM",ENABLED:"Enabled by Admin",POSITION_REQUESTED:"Position change requested",POSITION_APPROVED:"Position change approved",POSITION_REJECTED:"Position change rejected or cancelled",POSITION_EXECUTED:"Position change executed",CODE_VIEWED:"Activation code viewed",CODE_HANDED_OVER:"Activation code handed over",ACTIVATED:"Personal code set (activated)"};
+  const L={CREATED:"Access created",LOCKED:"Locked (multiple wrong attempts)",DISABLED:"Disabled by Admin",RESET_REQUESTED:"Reset requested",RESET_APPROVED:"Approved by RSM",RESET_REJECTED:"Rejected by RSM",ENABLED:"Enabled by Admin",POSITION_REQUESTED:"Position change requested",POSITION_APPROVED:"Position change approved",POSITION_REJECTED:"Position change rejected or cancelled",POSITION_EXECUTED:"Position change executed",CODE_VIEWED:"Temporary password viewed",CODE_HANDED_OVER:"Temporary password handed over",ACTIVATED:"Password set (activated)"};
   const last=e=>{const x=data.filter(r=>r.event===e).pop(); return x?fmtD(x.happened_at):"—";};
   $("histBody").innerHTML=`<h2>Access history: ${esc(u?.full_name||"")}</h2><p class="msg">Official record. It cannot be edited or deleted.</p>
    <div class="stats"><div>Created<strong style="font-size:15px">${last("CREATED")}</strong></div><div>Locked<strong style="font-size:15px">${last("LOCKED")}</strong></div><div>Approved by RSM<strong style="font-size:15px">${last("RESET_APPROVED")}</strong></div><div>Enabled<strong style="font-size:15px">${last("ENABLED")}</strong></div></div><br>`+
@@ -652,13 +665,13 @@ function codesHtml(){
     return `<div class="dg"><b>${esc(c.full_name)}</b> · ${RN[c.role]} · Access ID <b>${esc(c.ref)}</b> <span class="pill ${st[1]}">${st[0]}</span>${c.overdue?' <span class="pill s-LOCKED">Over 48 hours</span>':""}
       <div class="sub">Created ${fmtD(c.code_created_at)}${c.viewed_at?" · viewed "+fmtD(c.viewed_at):""}${c.handed_at?" · handed over "+fmtD(c.handed_at):""}</div>
       <div class="msg" id="cd_${c.user_id}"></div>
-      <p><button data-showc="${c.user_id}">${c.viewed_at?"Show code again":"Show code"}</button> ${c.state==="PENDING_HANDOVER"?`<button class="ghost" data-handc="${c.user_id}" ${c.viewed_at?"":"disabled"}>Mark as handed over</button>`:""}</p></div>`; }).join(""):"No access codes are waiting.";
+      <p><button data-showc="${c.user_id}">${c.viewed_at?"Show password again":"Show password"}</button> ${c.state==="PENDING_HANDOVER"?`<button class="ghost" data-handc="${c.user_id}" ${c.viewed_at?"":"disabled"}>Mark as handed over</button>`:""}</p></div>`; }).join(""):"No access codes are waiting.";
 }
 async function loadCodes(){
   const {data,error}=await sb.rpc("my_pending_codes"); if(error) return; CODES=data;
   const n=CODES.filter(c=>c.state==="PENDING_HANDOVER").length;
   ["codeBadge","a_codeBadge"].forEach(i=>{ if($(i)) $(i).textContent=n?" ("+n+")":""; });
-  const intro=`<p class="msg">${me.role==="ADMIN"?"Activation codes for Head Office accounts. ":"Activation codes for the people who report to you. "}Show the code, give it to the person, then mark it as handed over. The code works once: the person sets their own personal code at first login. Every view and handover is recorded.</p>`;
+  const intro=`<p class="msg">${me.role==="ADMIN"?"Temporary passwords for Head Office accounts. ":"Temporary passwords for the people who report to you. "}Show the temporary password, give it to the person together with their Access ID, then mark it as handed over. It works once: the person sets their own password at first login. Every view and handover is recorded.</p>`;
   if($("tabCodes")&&me.role!=="ADMIN") $("tabCodes").innerHTML=`<section class="card"><h2>Access codes waiting</h2>${intro}${codesHtml()}</section>`;
   if($("codes_a")) $("codes_a").innerHTML=intro+codesHtml();
 }
@@ -667,16 +680,21 @@ document.body.addEventListener("click",async e=>{
   if(cp){ if(navigator.clipboard) navigator.clipboard.writeText(cp.dataset.copyc); return; }
   if(sh){ const id=sh.dataset.showc, {data,error}=await sb.rpc("reveal_code",{p_user:id}), box=$("cd_"+id);
     if(error){ box.className="msg err"; box.textContent=error.message; return; }
-    box.className="msg good"; box.innerHTML=`<b class="codebox">${esc(data)}</b> <button class="ghost" data-copyc="${esc(data)}">Copy</button> <span class="sub">hides in 30 seconds</span>`;
+    box.className="msg good"; box.innerHTML=`Access ID <b>${esc((CODES.find(x=>x.user_id===id)||{}).ref||"")}</b> · Temporary password <b class="codebox">${esc(data)}</b> <button class="ghost" data-copyc="${esc(data)}">Copy password</button> <span class="sub">hides in 30 seconds</span>`;
     const hb=document.querySelector(`[data-handc="${id}"]`); if(hb) hb.disabled=false;
     setTimeout(()=>{ const b2=$("cd_"+id); if(b2) b2.textContent=""; },30000); return; }
   if(hd){ if(!confirm("Confirm you have given this code to the person?")) return; const {error}=await sb.rpc("mark_handed_over",{p_user:hd.dataset.handc}); if(error) alert(error.message); loadCodes(); }
 });
+const pwRules=p=>[["8 to 64 characters, no spaces",/^\S{8,64}$/.test(p)],["An uppercase letter",/[A-Z]/.test(p)],["A lowercase letter",/[a-z]/.test(p)],["A number",/[0-9]/.test(p)],["A special character such as ! @ # $ %",/[^A-Za-z0-9]/.test(p)]];
+const showRules=()=>{ $("sc_rules").innerHTML=pwRules($("sc_a").value).map(r=>`<div style="color:${r[1]?"var(--ok)":"var(--mute)"}">${r[1]?"✓":"○"} ${r[0]}</div>`).join(""); };
+$("sc_a").addEventListener("input",showRules); showRules();
+function wireEye(btnId,inputs){ const b=$(btnId); b.innerHTML=EYE; b.onclick=()=>{ const on=b.dataset.on!=="1"; b.dataset.on=on?"1":""; b.innerHTML=on?EYEOFF:EYE; b.setAttribute("aria-label",on?"Hide password":"Show password"); inputs.forEach(i=>{ $(i).type=on?"text":"password"; }); }; }
+wireEye("pwEye",["pw"]); wireEye("scEye",["sc_a","sc_b"]);
 $("sc_go").onclick=async()=>{
-  const m=$("sc_msg"), a=$("sc_a").value.trim().toUpperCase(), b=$("sc_b").value.trim().toUpperCase();
-  if(!/^[A-Z0-9]{8,32}$/.test(a)||!/[A-Z]/.test(a)||!/[0-9]/.test(a)){ m.textContent="Use 8 to 32 letters and numbers, with at least one letter and one number."; return; }
+  const m=$("sc_msg"), a=$("sc_a").value, b=$("sc_b").value;
+  if(pwRules(a).some(r=>!r[1])){ m.textContent="Your password does not meet all the rules yet."; return; }
   if(a!==b){ m.textContent="The two entries do not match."; return; }
-  const {data,error}=await sb.rpc("set_personal_code",{p_secret:a}); if(error){ m.textContent=error.message; return; }
+  const {data,error}=await sb.rpc("set_password",{p_password:a}); if(error){ m.textContent=error.message; return; }
   await sb.auth.signOut(); sessionStorage.setItem("pcMsg",data); location.reload();
 };
 let BROWS=[];
@@ -699,10 +717,10 @@ function initBulk(){
     if(!bad) $("b_go").classList.remove("hide");
   };
   $("b_go").onclick=async()=>{
-    if(!BROWS.length||!confirm(`Create ${BROWS.length} user(s)? Their activation codes will be sent to their managers for handover.`)) return;
+    if(!BROWS.length||!confirm(`Create ${BROWS.length} user(s)? Their temporary passwords will be sent to their managers for handover.`)) return;
     const r=$("b_res"); r.className="msg"; r.textContent="Creating…";
     const {data,error}=await sb.rpc("admin_bulk_create",{p_rows:BROWS}); if(error){ r.className="msg err"; r.textContent=error.message; return; }
-    r.className="msg good"; r.innerHTML=`${data.created} user(s) created. Activation codes were sent for handover to: `+data.recipients.map(x=>`${esc(x.name)} (${x.count})`).join(", ")+".";
+    r.className="msg good"; r.innerHTML=`${data.created} user(s) created. Temporary passwords were sent for handover to: `+data.recipients.map(x=>`${esc(x.name)} (${x.count})`).join(", ")+".";
     BROWS=[]; $("b_go").classList.add("hide"); $("b_body").innerHTML=""; $("b_head").innerHTML=""; $("b_file").value=""; $("b_sum").textContent=""; loadAdmin(); loadCodes();
   };
 }
