@@ -32,7 +32,7 @@ table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:11px 8px;border-bottom:1px solid var(--line)}
 th{color:var(--mute);font-weight:500;font-size:13px}
 td select{width:auto;margin:0;padding:6px 10px;border-radius:999px;font-weight:600;font-size:13px}
-.st-New{background:#ece4ff}.st-Contacted,.st-Applied{background:#fff2c9}.st-Approved,.st-Disbursed{background:#d5f5e6}.st-Declined{background:#fde0dd}
+.st-New{background:#ece4ff}.st-Applied,.st-In_progress{background:#fff2c9}.st-Approved,.st-Disbursed{background:#d5f5e6}.st-Rejected,.st-Not_to_proceed{background:#fde0dd}
 .st{color:#241046}
 .bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}.bar>*{flex:1;min-width:150px;margin:0}
 #login{min-height:100vh;margin:0;display:grid;place-items:center;padding:20px;background:transparent;border:0;border-radius:0}
@@ -139,6 +139,8 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
         <label>Term (months)<select id="f_term"><option>3</option><option>4</option><option>5</option><option>6</option><option>8</option><option>9</option><option>10</option><option selected>12</option><option>18</option><option>24</option></select></label>
         <label>Merchant<select id="f_loc"><option value="">Select merchant</option><option>Asian Home Appliance</option><option>FC Home</option><option>Home Along</option><option>Robinsons Appliance</option></select></label>
         <label>Store name<input id="f_store" placeholder="Type the store name"></label>
+        <label>Product type<select id="f_prod"><option value="">Select product type</option><option>SIL Instore</option><option>SIL Ulit B</option><option>SIL Zero</option><option>SIL Others</option></select></label>
+        <label>Customer already applied?<select id="f_applied"><option value="N">No, not yet</option><option value="Y">Yes, already applied</option></select></label>
         <label>Source of lead<select id="f_src"><option value="">Select source</option><option>Walk-in</option><option>FB Leads</option><option>Tiktok Leads</option><option>My former client</option><option disabled>Repeat client (Head Office uploads only)</option><option>Others</option></select></label>
         <label id="f_srcxw" class="hide">Please specify source<input id="f_srcx" placeholder="Where did this lead come from?"></label>
       </div><br>
@@ -147,8 +149,8 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
       <div id="formMsg" class="msg"></div>
     </section>
 
-    <section class="card hide" id="uploadCard"><h2>Upload repeat-offer list</h2>
-      <p class="msg">CSV columns: customer_name, finance_amount, merchant, store_name (optional: mobile, item). <a href="#" id="tpl">Download template</a></p>
+    <section class="card hide" id="uploadCard"><h2 id="upTitle">Upload repeat-offer list</h2>
+      <p class="msg">CSV columns: customer_name, finance_amount, merchant, store_name (optional: mobile, item, product_type: SIL Instore, SIL Ulit B, SIL Zero or SIL Others). <a href="#" id="tpl">Download template</a></p>
       <div class="bar"><select id="upRsm"></select><input type="file" id="upFile" accept=".csv"><button id="upBtn">Upload leads</button></div><div id="upMsg" class="msg"></div></section>
 
     <section class="card"><div class="stats" id="stats"></div></section>
@@ -179,10 +181,10 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 </div>
 
 <dialog id="detDlg"><h2 id="det_title">Approval details</h2><p class="msg">Fill these in to mark the lead Approved or Booked. The finance amount is the final amount, and it is the one that gets added up. For a Booked lead, the loan account number is also required.</p>
-<div class="grid"><label>Type of product<input id="d_type"></label><label>Category<input id="d_cat"></label>
+<div class="grid"><label>Product type<select id="d_type"><option value="">Select product type</option><option>SIL Instore</option><option>SIL Ulit B</option><option>SIL Zero</option><option>SIL Others</option></select></label><label>Category<input id="d_cat"></label>
 <label>Item price (₱)<input id="d_price" inputmode="decimal" autocomplete="off"></label><label>Downpayment (₱)<input id="d_dp" inputmode="decimal" autocomplete="off"></label>
 <label>Finance amount (₱)<input id="d_fin" inputmode="decimal" autocomplete="off"></label><label>Industry<input id="d_ind"></label>
-<label>Occupation<input id="d_occ"></label><label>With VAS<select id="d_vas"><option value="">Select</option><option value="Y">Yes</option><option value="N">No</option></select></label>
+<label>Occupation<input id="d_occ"></label><label>With Payhinga<select id="d_vas"><option value="">Select</option><option value="Y">Yes</option><option value="N">No</option></select></label>
 <label id="d_loanw" class="hide">Loan account number<input id="d_loan" autocomplete="off" autocapitalize="characters" placeholder="Required for a Booked lead"></label></div>
 <p><button id="det_save">Save</button> <button class="ghost" id="det_cancel">Cancel</button></p><div id="d_msg" class="msg"></div></dialog>
 <dialog id="collDlg"><h2>Update call-out result</h2><p class="msg" id="cl_for"></p>
@@ -198,7 +200,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 const SUPABASE_URL = "https://wxflqiswoifwpyxjtgis.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind4ZmxxaXN3b2lmd3B5eGp0Z2lzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxNDA1ODAsImV4cCI6MjEwNzcxNjU4MH0.isva0tkzWyc_XSZQhYoXIxrymKB_24gIrIFQZSqzpCE";   // the anon key is safe to publish; RLS protects the data
 // =================================================================
-const STATUSES = ["New","Contacted","Approved","Declined","Disbursed"];
+const STATUSES = ["New","Applied","In progress","Approved","Rejected","Not to proceed","Disbursed"];
 const ROLE_NAME = {ADMIN:"Admin",HO:"Head Office",RSM:"Regional Sales Manager",TSM:"Territory Sales Manager",PROMOTER:"Promoter"};
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY,{auth:{storage:window.sessionStorage,persistSession:true,autoRefreshToken:true}});
 const $ = id => document.getElementById(id);
@@ -222,11 +224,11 @@ async function boot(){
   $("tabLeads").classList.remove("hide"); $("tabAdmin").classList.add("hide");
   $("formCard").classList.toggle("hide", me.role!=="PROMOTER");
   $("listTitle").textContent = me.role==="PROMOTER" ? "My leads" : me.role==="HO" ? "All leads" : "Leads in my team";
-  $("fStatus").innerHTML = '<option value="">All statuses</option>'+STATUSES.map(s=>`<option>${s}</option>`).join("");
+  $("fStatus").innerHTML = '<option value="">All statuses</option>'+STATUSES.map(s=>`<option value="${s}">${s==="Applied"?"Applied (submitted)":s==="Disbursed"?"Disbursed (Booked)":s}</option>`).join("");
   $("csv").classList.toggle("hide", me.role!=="HO");
   $("tabs").classList.toggle("hide", me.role==="PROMOTER");
   $("dupBtn").classList.toggle("hide", !["HO","RSM"].includes(me.role));
-  $("uploadCard").classList.toggle("hide", me.role!=="HO");
+  $("uploadCard").classList.toggle("hide", !["HO","RSM"].includes(me.role)); $("upRsm").classList.toggle("hide",me.role==="RSM"); $("upTitle").textContent=me.role==="RSM"?"Upload leads to share with your network":"Upload repeat-offer list";
   $("upRsm").innerHTML='<option value="">Assign batch to RSM…</option>'+profs.filter(p=>p.role==="RSM").map(p=>`<option value="${p.id}">${esc(p.full_name)}</option>`).join("");
   const showPro = me.role!=="PROMOTER";
   $("fPro").classList.toggle("hide",!showPro);
@@ -250,7 +252,7 @@ async function load(){
 }
 
 const srcText=l=>l.lead_source==="Others"?"Others: "+(l.lead_source_other||""):(l.lead_source||"");
-const CLOSED=["Declined","Disbursed"], MERCH=["Asian Home Appliance","FC Home","Home Along","Robinsons Appliance"];
+const CLOSED=["Rejected","Disbursed","Not to proceed"], MERCH=["Asian Home Appliance","FC Home","Home Along","Robinsons Appliance"];
 function heat(l){ if(!l.promoter_id) return "POOL"; if(CLOSED.includes(l.status)) return "";
   const d=(Date.now()-new Date(l.assigned_at||l.created_at))/864e5; return d<=5?"Hot":d<=14?"Warm":""; }
 function filtered(){
@@ -271,9 +273,9 @@ function render(){
     const mob=l.mobile?(on?esc(l.mobile):"•••• ••• ••••")+`<button class="eye" data-eye="${l.id}" aria-label="${on?"Hide":"Show"} mobile number">${on?EYEOFF:EYE}</button>`:"No mobile number yet";
     return `<article class="lead${l.status==="Approved"?" appr":""}${l.dup_flag?" dup":""}">${l.status==="Approved"?'<div class="callout">Approved — please call the client</div>':""}${l.dup_flag?'<div class="flagbar">Flagged as duplicate — please remove this lead.'+(l.dup_note?" Note: "+esc(l.dup_note):"")+"</div>":""}<div class="top"><div><b>${on?"••••••••":esc(l.customer_name)}</b><div class="mob">${mob}</div></div>${amtBlock(l)}</div>
     <div class="meta">${esc(l.location)} · ${esc(l.store_name)}</div>
-    <div class="row">${h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:""}${own?`<select class="st st-${l.status}" data-id="${l.id}" aria-label="Status">${STATUSES.map(x=>`<option ${x===l.status?"selected":""}>${x}</option>`).join("")}</select>`:`<span class="pill st-${l.status}">${l.status}</span>`}</div>
+    <div class="row">${h?`<span class="pill h-${h}">${h==="POOL"?"Unassigned":h}</span>`:""}${statusUI(l,own)}</div>
     ${prom?`<div class="prom">${prom}</div>`:""}
-    <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Source",esc(srcText(l))||"—")}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}${detRows(l,own)}
+    <details><summary>More details</summary>${kv("Added",new Date(l.created_at).toLocaleDateString("en-PH"))}${kv("Applied on",l.applied_at?new Date(l.applied_at).toLocaleDateString("en-PH",{timeZone:"Asia/Manila"}):"—")}${kv("Product type",esc(l.product_type)||"—")}${kv("Source",esc(srcText(l))||"—")}${kv("Item",esc(l.item)||"—")}${kv("Term",l.term_months?l.term_months+" months":"—")}${detRows(l,own)}
     ${own?`<label>Remarks<input class="rem" data-rem="${l.id}" value="${esc(l.remarks)}" placeholder="Add remarks"></label>`:kv("Remarks",esc(l.remarks)||"—")}</details>${(me.role==="RSM"||me.role==="TSM")?`<button class="danger" data-del="${l.id}">Delete lead</button>`:(me.role==="PROMOTER"&&l.dup_flag?`<button class="danger" data-del="${l.id}">Remove duplicate</button>`:"")}</article>`;}).join("");
   $("empty").classList.toggle("hide",rows.length>0);
   $("empty").textContent="No leads match.";
@@ -302,10 +304,10 @@ $("f_amt").addEventListener("input",e=>{const p=e.target.value.replace(/[^\d.]/g
 $("f_src").addEventListener("change",()=>$("f_srcxw").classList.toggle("hide",$("f_src").value!=="Others"));
 $("saveBtn").onclick=async()=>{
   const m=$("formMsg"), name=$("f_name").value.trim(), mobile=$("f_mobile").value.trim(), item=$("f_item").value.trim(), amt=parseFloat($("f_amt").value.replace(/,/g,""));
-  if(!name||!/^(09|\+639)\d{9}$/.test(mobile.replace(/[\s-]/g,""))||!item||!(amt>0)||!$("f_loc").value||!$("f_store").value.trim()||!$("f_src").value||($("f_src").value==="Others"&&!$("f_srcx").value.trim())){ m.className="msg err"; m.textContent="Complete all fields: name, a valid PH mobile (09XXXXXXXXX), item, finance amount, merchant, store name and source of lead (specify it if Others)."; return; }
-  const {error}=await sb.from("leads").insert({customer_name:name,mobile:mobile.replace(/[\s-]/g,""),item,loan_amount:amt,term_months:+$("f_term").value,location:$("f_loc").value,store_name:$("f_store").value.trim(),lead_source:$("f_src").value,lead_source_other:$("f_src").value==="Others"?$("f_srcx").value.trim():null,remarks:$("f_rem").value.trim()});
+  if(!name||!/^(09|\+639)\d{9}$/.test(mobile.replace(/[\s-]/g,""))||!item||!(amt>0)||!$("f_loc").value||!$("f_store").value.trim()||!$("f_src").value||!$("f_prod").value||($("f_src").value==="Others"&&!$("f_srcx").value.trim())){ m.className="msg err"; m.textContent="Complete all fields: name, a valid PH mobile (09XXXXXXXXX), item, finance amount, merchant, store name, product type and source of lead (specify it if Others)."; return; }
+  const {error}=await sb.from("leads").insert({customer_name:name,mobile:mobile.replace(/[\s-]/g,""),item,loan_amount:amt,term_months:+$("f_term").value,location:$("f_loc").value,store_name:$("f_store").value.trim(),product_type:$("f_prod").value,status:$("f_applied").value==="Y"?"Applied":"New",lead_source:$("f_src").value,lead_source_other:$("f_src").value==="Others"?$("f_srcx").value.trim():null,remarks:$("f_rem").value.trim()});
   if(error){ m.className="msg err"; m.textContent=error.message; return; }
-  ["f_name","f_mobile","f_item","f_amt","f_loc","f_store","f_rem","f_src","f_srcx"].forEach(i=>$(i).value=""); $("f_srcxw").classList.add("hide");
+  ["f_name","f_mobile","f_item","f_amt","f_loc","f_store","f_rem","f_src","f_srcx","f_prod"].forEach(i=>$(i).value=""); $("f_applied").value="N"; $("f_srcxw").classList.add("hide");
   m.className="msg good"; m.textContent="Lead saved. Nice one!"; load();
 };
 
@@ -318,6 +320,8 @@ $("list").addEventListener("click",e=>{
 $("list").addEventListener("change",async e=>{
   const d=e.target.dataset, v=e.target.value; let r;
   if(d.rem){ r=await sb.from("leads").update({remarks:v.trim()}).eq("id",d.rem); if(r.error) alert(r.error.message); else{const x=leads.find(z=>z.id==d.rem); if(x) x.remarks=v.trim();} return; }
+  if(d.lead){ if(v!=="Applied"||!confirm("Mark this lead as Applied? Today will be recorded as the application date.")){ render(); return; }
+    r=await sb.from("leads").update({status:"Applied"}).eq("id",d.lead); if(r.error) alert(r.error.message); load(); return; }
   if(d.id&&["Approved","Disbursed"].includes(v)){ openDet(Number(d.id),v); return; }
   if(d.id) r=await sb.from("leads").update({status:v}).eq("id",d.id);
   else if(d.assign){ if(!v) return; r=await sb.rpc("assign_lead",{p_lead:Number(d.assign),p_promoter:v}); }
@@ -330,8 +334,8 @@ $("list").addEventListener("change",async e=>{
 
 $("csv").onclick=()=>{
   if(!me||me.role!=="HO") return;
-  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Source","Status","Remarks","Final Finance Amount","Product Type","Category","Item Price","Downpayment","Industry","Occupation","With VAS","Loan Account No."];
-  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,srcText(l),l.status,l.remarks,l.final_finance_amount,l.product_type,l.product_category,l.item_price,l.downpayment,l.industry,l.occupation,l.with_vas==null?"":(l.with_vas?"Yes":"No"),l.loan_account_no].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
+  const head=["Date","Promoter","Customer","Mobile","Item","Finance Amount","Term","Merchant","Store","Source","Status","Remarks","Final Finance Amount","Product Type","Category","Item Price","Downpayment","Industry","Occupation","With Payhinga","Loan Account No.","Application Date"];
+  const lines=filtered().map(l=>[l.created_at.slice(0,10),people[l.promoter_id]?.full_name,l.customer_name,l.mobile,l.item,l.loan_amount,l.term_months,l.location,l.store_name,srcText(l),l.status,l.remarks,l.final_finance_amount,l.product_type,l.product_category,l.item_price,l.downpayment,l.industry,l.occupation,l.with_vas==null?"":(l.with_vas?"Yes":"No"),l.loan_account_no,l.applied_at?l.applied_at.slice(0,10):""].map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(","));
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([[head.join(","),...lines].join("\n")],{type:"text/csv"})); a.download="leads.csv"; a.click();
 };
 
@@ -341,34 +345,50 @@ function parseCSV(t){const r=[];let row=[],f="",q=false;t=t.replace(/^\uFEFF/,""
     else if(c=='"')q=true; else if(c==","){row.push(f);f=""}
     else if(c=="\n"||c=="\r"){if(c=="\r"&&t[i+1]=="\n")i++;row.push(f);f="";if(row.some(x=>x.trim()))r.push(row);row=[]} else f+=c}
   row.push(f);if(row.some(x=>x.trim()))r.push(row);return r;}
-$("tpl").onclick=e=>{e.preventDefault();const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["customer_name,finance_amount,merchant,store_name,mobile\nJuan Dela Cruz,25000,Asian Home Appliance,SM North,\n"],{type:"text/csv"}));a.download="repeat-offer-template.csv";a.click();};
+$("tpl").onclick=e=>{e.preventDefault();const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["customer_name,finance_amount,merchant,store_name,mobile,product_type\nJuan Dela Cruz,25000,Asian Home Appliance,SM North,,SIL Instore\n"],{type:"text/csv"}));a.download="repeat-offer-template.csv";a.click();};
 $("upBtn").onclick=async()=>{
   const m=$("upMsg"), f=$("upFile").files[0]; m.className="msg err";
   if(!f){m.textContent="Choose a CSV file first.";return;}
-  if(!$("upRsm").value){m.textContent="Choose which RSM receives this batch.";return;}
+  if(me.role==="HO"&&!$("upRsm").value){m.textContent="Choose which RSM receives this batch.";return;}
   const t=parseCSV(await f.text()); if(t.length<2){m.textContent="The file has no rows.";return;}
-  const A={customer_name:"customer_name",name:"customer_name",customer:"customer_name",finance_amount:"amount",amount:"amount",possible_finance_amount:"amount",merchant:"merchant",store_name:"store",store:"store",mobile:"mobile",mobile_number:"mobile",item:"item"};
+  const A={customer_name:"customer_name",name:"customer_name",customer:"customer_name",finance_amount:"amount",amount:"amount",possible_finance_amount:"amount",merchant:"merchant",store_name:"store",store:"store",mobile:"mobile",mobile_number:"mobile",item:"item",product_type:"product",product:"product"};
   const idx={}; t[0].forEach((h,i)=>{const k=A[h.trim().toLowerCase().replace(/[^a-z0-9]+/g,"_")]; if(k) idx[k]=i;});
   const miss=["customer_name","amount","merchant","store"].filter(k=>!(k in idx));
   if(miss.length){m.textContent="Missing column(s): "+miss.join(", ");return;}
   const out=[],errs=[];
   t.slice(1).forEach((r,n)=>{const g=k=>(r[idx[k]]||"").trim(), amt=parseFloat(g("amount").replace(/,/g,"")), mer=MERCH.find(x=>x.toLowerCase()===g("merchant").toLowerCase()), mob=g("mobile").replace(/[\s-]/g,"");
-    if(!g("customer_name")||!(amt>0)||!mer||!g("store")||(mob&&!/^(09|\+639)\d{9}$/.test(mob))) errs.push("Row "+(n+2)); else out.push({customer_name:g("customer_name"),loan_amount:amt,location:mer,store_name:g("store"),mobile:mob,item:g("item")});});
-  if(errs.length){m.textContent=errs.length+" row(s) need fixing ("+errs.slice(0,8).join(", ")+"). Check name, amount, merchant spelling, store and mobile. Nothing was uploaded.";return;}
-  let total=0; for(let i=0;i<out.length;i+=500){const {data,error}=await sb.rpc("upload_leads",{rows:out.slice(i,i+500),p_rsm:$("upRsm").value}); if(error){m.textContent=error.message;return;} total+=data;}
+    if(!g("customer_name")||!(amt>0)||!mer||!g("store")||(mob&&!/^(09|\+639)\d{9}$/.test(mob))||(g("product")&&!PRODUCTS.find(x=>x.toLowerCase()===g("product").toLowerCase()))) errs.push("Row "+(n+2)); else out.push({customer_name:g("customer_name"),loan_amount:amt,location:mer,store_name:g("store"),mobile:mob,item:g("item"),product_type:(PRODUCTS.find(x=>x.toLowerCase()===g("product").toLowerCase())||"")});});
+  if(errs.length){m.textContent=errs.length+" row(s) need fixing ("+errs.slice(0,8).join(", ")+"). Check name, amount, merchant spelling, store, mobile and product type. Nothing was uploaded.";return;}
+  let total=0; for(let i=0;i<out.length;i+=500){const {data,error}=await sb.rpc("upload_leads",{rows:out.slice(i,i+500),p_rsm:me.role==="RSM"?me.id:$("upRsm").value}); if(error){m.textContent=error.message;return;} total+=data;}
   m.className="msg good"; m.textContent=total+" lead(s) uploaded. The RSM and their team can see them, and can tag them to promoters."; $("upFile").value=""; load();
 };
 
 function renderDash(){
-  const L=leads, sumE=a=>a.reduce((t,l)=>t+effAmt(l),0), sumP=a=>a.reduce((t,l)=>t+Number(l.loan_amount),0), f=x=>L.filter(l=>x.includes(l.status)), tot=sumP(L), pct=a=>tot?Math.round(sumE(a)/tot*100):0;
-  const stages=[["Rejected (Declined)",f(["Declined"]),"var(--bad)"],["Approved, not yet booked (final amount)",f(["Approved"]),"var(--ok)"],["Booked (final amount)",f(["Disbursed"]),"var(--brand)"],["Potential for call-out (New / Contacted)",f(["New","Contacted"]),"#e0a100"]];
-  const tile=(k,v)=>`<div>${k}<strong>${v}</strong></div>`;
-  const fn=(name,a,c,w,amount)=>`<div class="fn"><div class="fnh"><span>${name}</span><span>${a.length} lead(s) · ${peso(amount)}${w===undefined?"":" · "+w+"%"}</span></div><div class="fnb"><i style="width:${Math.min(Math.max(w??100,3),100)}%;background:${c}"></i></div></div>`;
-  const pros=Object.values(people).filter(p=>p.role==="PROMOTER").map(p=>{const a=L.filter(l=>l.promoter_id===p.id);return{n:p.full_name,c:a.length,amt:sumP(a),ok:a.filter(l=>l.status==="Approved").length,bk:a.filter(l=>l.status==="Disbursed").length,bamt:sumE(a.filter(l=>l.status==="Disbursed"))};}).sort((a,b)=>b.c-a.c||b.amt-a.amt);
+  if(!$("dh_from")){
+    $("tabDash").innerHTML=`<section class="card"><h2>Dashboard</h2><p class="msg">Everything below counts the applications made between the two dates (the day the promoter clicked Applied), and shows what they have become since.</p>
+      <div class="bar"><label>From<input type="date" id="dh_from"></label><label>To<input type="date" id="dh_to"></label>
+      <button class="ghost" data-dr="week">This week</button><button class="ghost" data-dr="month">This month</button><button class="ghost" data-dr="30">Last 30 days</button></div></section><div id="dh_body"></div>`;
+    const r=dashRange("month"); $("dh_from").value=r[0]; $("dh_to").value=r[1];
+    $("dh_from").addEventListener("input",renderDash); $("dh_to").addEventListener("input",renderDash);
+    $("tabDash").addEventListener("click",e=>{ const b=e.target.closest("[data-dr]"); if(!b) return; const r=dashRange(b.dataset.dr); $("dh_from").value=r[0]; $("dh_to").value=r[1]; renderDash(); });
+  }
+  const from=$("dh_from").value, to=$("dh_to").value;
+  const A=leads.filter(l=>l.status!=="New"&&l.applied_at&&(!from||manilaDate(l.applied_at)>=from)&&(!to||manilaDate(l.applied_at)<=to));
+  const by=s=>A.filter(l=>l.status===s), sumF=a=>a.reduce((t,l)=>t+Number(l.final_finance_amount||0),0), sumD=a=>a.reduce((t,l)=>t+Number(l.downpayment||0),0), sumL=a=>a.reduce((t,l)=>t+Number(l.loan_amount||0),0), sumE=a=>a.reduce((t,l)=>t+effAmt(l),0);
+  const booked=by("Disbursed"), rej=by("Rejected"), pend=by("Approved"), prog=by("In progress"), ntp=by("Not to proceed"), vas=booked.filter(l=>l.with_vas===true);
+  const denom=A.length-prog.length, rate=denom>0?(Math.round((pend.length+booked.length)/denom*1000)/10)+"%":"—";
+  const tile=(k,v,sub)=>`<div>${k}<strong>${v}</strong>${sub?`<span class="sub">${sub}</span>`:""}</div>`;
+  const prods=PRODUCTS.map(p=>[p,A.filter(l=>l.product_type===p)]).concat([["Not specified",A.filter(l=>!l.product_type)]]).filter((x,i)=>i<4||x[1].length);
+  const prow=(n,a)=>{ const b=a.filter(l=>l.status==="Disbursed"); return `<tr><td data-label="Product type">${esc(n)}</td><td data-label="Total applications">${a.length}</td><td data-label="Total booked">${b.length}</td><td data-label="Total finance amount">${peso(sumF(b))}</td></tr>`; };
+  const pros=Object.values(people).filter(p=>p.role==="PROMOTER").map(p=>{ const a=A.filter(l=>l.promoter_id===p.id), b=a.filter(l=>l.status==="Disbursed"); return {n:p.full_name,c:a.length,bk:b.length,amt:sumF(b)}; }).sort((a,b)=>b.c-a.c||b.amt-a.amt);
   const mx=Math.max(1,...pros.map(p=>p.c));
-  $("tabDash").innerHTML=`<section class="card"><h2>Overview</h2><div class="stats">${tile("New leads",f(["New"]).length)}${tile("Total leads",L.length)}${tile("Total possible finance amount",peso(tot))}${tile("Booked amount (final)",peso(sumE(f(["Disbursed"]))))}</div></section>
-  <section class="card"><h2>Funnel: what happened to the possible finance amount</h2>${fn("All leads (total possible finance amount)",L,"var(--mute)",undefined,tot)}${stages.map(x=>fn(x[0],x[1],x[2],pct(x[1]),sumE(x[1]))).join("")}</section>
-  <section class="card"><h2>Promoter lead input</h2>${pros.length?pros.map((p,i)=>`<div class="fn"><div class="fnh"><span>${i+1}. ${esc(p.n)}</span><span>${p.c} lead(s) · ${peso(p.amt)} possible · ${p.ok} approved · ${p.bk} booked (${peso(p.bamt)})</span></div><div class="fnb"><i style="width:${p.c?Math.max(p.c/mx*100,3):0}%;background:var(--brand)"></i></div></div>`).join(""):"No promoters yet."}</section>`;
+  $("dh_body").innerHTML=`<section class="card"><h2>Applications</h2><div class="stats">
+      ${tile("Total Applications",A.length)}${tile("Total Booked",booked.length,"Disbursed")}${tile("Total Downpayment",peso(sumD(booked)),"Booked leads")}${tile("Total Finance Amount",peso(sumF(booked)),"Booked leads")}
+      ${tile("Total Rejected Amount",peso(sumL(rej)),rej.length+" rejected")}${tile("Total Pending",pend.length,"Approved, not yet disbursed · "+peso(sumE(pend)))}${tile("Total In progress",prog.length,"Applied, not yet approved")}
+      ${tile("Total Not to Proceed",ntp.length,"Applied, tagged High Risk")}${tile("Total with Payhinga",vas.length,"of "+booked.length+" booked")}${tile("Approval rate*",rate,"(Approved + Disbursed) ÷ (Applications − In progress)")}</div>
+      <p class="msg">* Guide only. The official approval rate is in the Power BI report. Do not use this figure as the official approval rate.</p></section>
+    <section class="card"><h2>By product type</h2><div class="tablewrap"><table><thead><tr><th>Product type</th><th>Total applications</th><th>Total booked</th><th>Total finance amount</th></tr></thead><tbody>${prods.map(x=>prow(x[0],x[1])).join("")}${prow("All products",A)}</tbody></table></div></section>
+    <section class="card"><h2>Promoter ranking</h2>${pros.length?pros.map((p,i)=>`<div class="fn"><div class="fnh"><span>${i+1}. ${esc(p.n)}</span><span>${p.c} application(s) · ${p.bk} booked · ${peso(p.amt)}</span></div><div class="fnb"><i style="width:${p.c?Math.max(p.c/mx*100,3):0}%;background:var(--brand)"></i></div></div>`).join(""):"No promoters yet."}</section>`;
 }
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return;
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("on",t===b)); const k=b.dataset.tab;
@@ -638,7 +658,7 @@ const amtBlock=l=>`<div class="amts">`+(FIN(l)?`<div class="amt">${peso(l.final_
 function detRows(l,own){
   if(!["Approved","Disbursed"].includes(l.status)) return "";
   const kv=(k,v)=>`<div class="kv"><span>${k}</span><span>${v}</span></div>`, has=l.product_type!=null;
-  return (has?kv("Type of product",esc(l.product_type))+kv("Category",esc(l.product_category))+kv("Item price",peso(l.item_price))+kv("Downpayment",peso(l.downpayment))+kv("Finance amount",peso(l.final_finance_amount))+kv("Industry",esc(l.industry))+kv("Occupation",esc(l.occupation))+kv("With VAS",l.with_vas?"Yes":"No")+(l.status==="Disbursed"?kv("Loan account no.",l.loan_account_no?esc(l.loan_account_no):"Not yet provided"):""):kv("Approval details","Not yet provided"))
+  return (has?kv("Category",esc(l.product_category))+kv("Item price",peso(l.item_price))+kv("Downpayment",peso(l.downpayment))+kv("Finance amount",peso(l.final_finance_amount))+kv("Industry",esc(l.industry))+kv("Occupation",esc(l.occupation))+kv("With Payhinga",l.with_vas?"Yes":"No")+(l.status==="Disbursed"?kv("Loan account no.",l.loan_account_no?esc(l.loan_account_no):"Not yet provided"):""):kv("Approval details","Not yet provided"))
     +(own?`<p><button class="ghost" data-det="${l.id}">${has&&!(l.status==="Disbursed"&&!l.loan_account_no)?"Edit approval details":(has?"Add loan account number":"Add approval details")}</button></p>`:"");
 }
 let DET=null;
@@ -742,7 +762,9 @@ let FLAGS={}, COLL=[], CUP=[], CROWS=[], cshown=null, cTimer, CDLG=null;
 const CST={TO_CALL:["To call","h-Warm"],DID_NOT_ANSWER:["Did not answer","s-DISABLED"],PROMISE_TO_PAY:["Promise to pay","h-POOL"],PAID:["Paid","s-ACTIVE"],WRONG_NUMBER:["Wrong number","s-LOCKED"],DISPUTE:["Disputes the amount","s-LOCKED"]};
 const dueTxt=c=>"Due "+new Date(c.due_on+"T00:00:00Z").toLocaleDateString("en-PH",{day:"numeric",month:"short",year:"numeric",timeZone:"UTC"})+" · "+(c.dpd>0?c.dpd+" day"+(c.dpd>1?"s":"")+" past due":"not yet due");
 async function initFlags(){
-  const {data}=await sb.rpc("get_flags"); $("f_coll").checked=!!(data&&data.collections);
+  const {data,error}=await sb.rpc("get_flags");
+  if(error){ $("f_msg").className="msg err"; $("f_msg").textContent="Could not read this setting: "+error.message+". Has update-16.sql been run in Supabase?"; $("f_coll").disabled=true; return; }
+  $("f_coll").checked=!!(data&&data.collections); $("f_msg").className="msg"; $("f_msg").textContent="Currently "+(data&&data.collections?"ON":"OFF")+". Promoters, TSMs, RSMs and Head Office see the Collections callout tab only when this is ON, after they refresh the page or log in again.";
   $("f_coll").onchange=async e=>{ const on=e.target.checked;
     if(on&&!confirm("Switch on Collections callout? Promoters and TSMs will see the overdue account details. Do this only after Tonik has approved it.")){ e.target.checked=false; return; }
     const {error}=await sb.rpc("admin_set_flag",{p_key:"collections",p_value:on});
@@ -861,6 +883,24 @@ document.body.addEventListener("change",async e=>{
   const a=e.target.dataset&&e.target.dataset.cassign; if(!a||!e.target.value) return;
   const {error}=await sb.rpc("collection_assign",{p_case:Number(a),p_promoter:e.target.value==="__clear"?null:e.target.value}); if(error) alert(error.message); loadColl();
 });
+
+const PRODUCTS=["SIL Instore","SIL Ulit B","SIL Zero","SIL Others"];
+const APPSTAT=["Applied","In progress","Approved","Rejected","Not to proceed","Disbursed"];
+const SLABEL={Applied:"Applied (submitted)",Disbursed:"Disbursed (Booked)"};
+const slug=s=>String(s).replace(/\s+/g,"_");
+const statusUI=(l,own)=>{
+  const applied=l.status!=="New";
+  if(!own) return `<span class="pill st-${slug(l.status)}">${l.status==="New"?"New":"Applied · "+(l.status==="Applied"?"submitted":(SLABEL[l.status]||l.status))}</span>`;
+  const ls=`<select class="st st-${applied?"Applied":"New"}" data-lead="${l.id}" aria-label="Lead status"${applied?" disabled":""}><option value="New"${applied?"":" selected"}>New</option><option value="Applied"${applied?" selected":""}>Applied</option></select>`;
+  const as=applied?`<select class="st st-${slug(l.status)}" data-id="${l.id}" aria-label="Application status">${APPSTAT.map(x=>`<option value="${x}"${x===l.status?" selected":""}>${x==="Applied"?"Submitted":(SLABEL[x]||x)}</option>`).join("")}</select>`:"";
+  return ls+as;
+};
+const manilaDate=d=>new Date(d).toLocaleDateString("en-CA",{timeZone:"Asia/Manila"});
+const addDays=(s,n)=>{ const d=new Date(s+"T12:00:00Z"); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); };
+function dashRange(k){ const t=manilaDate(Date.now());
+  if(k==="week"){ const dow=(new Date(t+"T12:00:00Z").getUTCDay()+6)%7; return [addDays(t,-dow),t]; }
+  if(k==="30") return [addDays(t,-29),t];
+  return [t.slice(0,8)+"01",t]; }
 
 let lastAct=Date.now();
 ["mousemove","keydown","click","touchstart","scroll"].forEach(ev=>addEventListener(ev,()=>{lastAct=Date.now();},{passive:true}));
