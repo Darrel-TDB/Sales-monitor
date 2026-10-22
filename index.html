@@ -84,6 +84,14 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 .tabs{flex-wrap:wrap}.amts{text-align:right}.amt small{display:block;font-size:11px;font-weight:500;color:var(--mute)}
 #setcode{min-height:100vh;display:grid;place-items:center;padding:20px}#setcode .box{width:100%;max-width:420px;background:var(--card);border-radius:24px;padding:30px}#setcode h1{margin:0 0 4px;font-size:24px}#setcode p.sub{margin:0 0 16px;color:var(--mute)}
 .pwrow{position:relative}.pwrow input{padding-right:46px}.pwrow .eye{position:absolute;right:8px;top:calc(50% + 2px);transform:translateY(-50%);margin:0}
+.dbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.dbar label{margin:0;flex:0 0 auto}.dbar input{width:auto;margin-top:4px;padding:8px 10px;font-size:13px}
+.dbar button{flex:0 0 auto;padding:7px 14px;font-size:12px;font-weight:600}
+.dstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.dstats>div{background:var(--bg);border-radius:14px;padding:12px 14px;font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dstats strong{display:block;font-size:20px;line-height:1.3;color:var(--ink);font-weight:700;margin:2px 0}
+.dstats .sub{display:block;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dtable th,.dtable td{padding:8px;font-size:13px;white-space:nowrap}
 .hide{display:none!important}
 @media (max-width:700px){
  table,tbody,tr,td{display:block}thead{display:none}
@@ -366,7 +374,7 @@ $("upBtn").onclick=async()=>{
 function renderDash(){
   if(!$("dh_from")){
     $("tabDash").innerHTML=`<section class="card"><h2>Dashboard</h2><p class="msg">Everything below counts the applications made between the two dates (the day the promoter clicked Applied), and shows what they have become since.</p>
-      <div class="bar"><label>From<input type="date" id="dh_from"></label><label>To<input type="date" id="dh_to"></label>
+      <div class="dbar"><label>From<input type="date" id="dh_from"></label><label>To<input type="date" id="dh_to"></label>
       <button class="ghost" data-dr="week">This week</button><button class="ghost" data-dr="month">This month</button><button class="ghost" data-dr="30">Last 30 days</button></div></section><div id="dh_body"></div>`;
     const r=dashRange("month"); $("dh_from").value=r[0]; $("dh_to").value=r[1];
     $("dh_from").addEventListener("input",renderDash); $("dh_to").addEventListener("input",renderDash);
@@ -377,17 +385,17 @@ function renderDash(){
   const by=s=>A.filter(l=>l.status===s), sumF=a=>a.reduce((t,l)=>t+Number(l.final_finance_amount||0),0), sumD=a=>a.reduce((t,l)=>t+Number(l.downpayment||0),0), sumL=a=>a.reduce((t,l)=>t+Number(l.loan_amount||0),0), sumE=a=>a.reduce((t,l)=>t+effAmt(l),0);
   const booked=by("Disbursed"), rej=by("Rejected"), pend=by("Approved"), prog=by("In progress"), ntp=by("Not to proceed"), vas=booked.filter(l=>l.with_vas===true);
   const denom=A.length-prog.length, rate=denom>0?(Math.round((pend.length+booked.length)/denom*1000)/10)+"%":"—";
-  const tile=(k,v,sub)=>`<div>${k}<strong>${v}</strong>${sub?`<span class="sub">${sub}</span>`:""}</div>`;
+  const tile=(k,v,sub)=>`<div title="${esc(k+": "+v+(sub?" · "+sub:""))}">${k}<strong>${v}</strong>${sub?`<span class="sub">${sub}</span>`:""}</div>`;
   const prods=PRODUCTS.map(p=>[p,A.filter(l=>l.product_type===p)]).concat([["Not specified",A.filter(l=>!l.product_type)]]).filter((x,i)=>i<4||x[1].length);
   const prow=(n,a)=>{ const b=a.filter(l=>l.status==="Disbursed"); return `<tr><td data-label="Product type">${esc(n)}</td><td data-label="Total applications">${a.length}</td><td data-label="Total booked">${b.length}</td><td data-label="Total finance amount">${peso(sumF(b))}</td></tr>`; };
   const pros=Object.values(people).filter(p=>p.role==="PROMOTER").map(p=>{ const a=A.filter(l=>l.promoter_id===p.id), b=a.filter(l=>l.status==="Disbursed"); return {n:p.full_name,c:a.length,bk:b.length,amt:sumF(b)}; }).sort((a,b)=>b.c-a.c||b.amt-a.amt);
   const mx=Math.max(1,...pros.map(p=>p.c));
-  $("dh_body").innerHTML=`<section class="card"><h2>Applications</h2><div class="stats">
+  $("dh_body").innerHTML=`<section class="card"><h2>Applications</h2><div class="dstats">
       ${tile("Total Applications",A.length)}${tile("Total Booked",booked.length,"Disbursed")}${tile("Total Downpayment",peso(sumD(booked)),"Booked leads")}${tile("Total Finance Amount",peso(sumF(booked)),"Booked leads")}
-      ${tile("Total Rejected Amount",peso(sumL(rej)),rej.length+" rejected")}${tile("Total Pending",pend.length,"Approved, not yet disbursed · "+peso(sumE(pend)))}${tile("Total In progress",prog.length,"Applied, not yet approved")}
-      ${tile("Total Not to Proceed",ntp.length,"Applied, tagged High Risk")}${tile("Total with Payhinga",vas.length,"of "+booked.length+" booked")}${tile("Approval rate*",rate,"(Approved + Disbursed) ÷ (Applications − In progress)")}</div>
-      <p class="msg">* Guide only. The official approval rate is in the Power BI report. Do not use this figure as the official approval rate.</p></section>
-    <section class="card"><h2>By product type</h2><div class="tablewrap"><table><thead><tr><th>Product type</th><th>Total applications</th><th>Total booked</th><th>Total finance amount</th></tr></thead><tbody>${prods.map(x=>prow(x[0],x[1])).join("")}${prow("All products",A)}</tbody></table></div></section>
+      ${tile("Total Rejected Amount",peso(sumL(rej)),rej.length+" rejected")}${tile("Total Pending",pend.length,peso(sumE(pend))+" · not disbursed")}${tile("Total In progress",prog.length,"Not yet approved")}
+      ${tile("Total Not to Proceed",ntp.length,"High Risk")}${tile("Total with Payhinga",vas.length,"of "+booked.length+" booked")}${tile("Approval rate*",rate,"Guide only")}</div>
+      <p class="msg">* Guide only: (Approved + Disbursed) ÷ (Applications − In progress). The official approval rate is in the Power BI report. Do not use this figure as the official approval rate.</p></section>
+    <section class="card"><h2>By product type</h2><div class="tablewrap"><table class="dtable"><thead><tr><th>Product type</th><th>Total applications</th><th>Total booked</th><th>Total finance amount</th></tr></thead><tbody>${prods.map(x=>prow(x[0],x[1])).join("")}${prow("All products",A)}</tbody></table></div></section>
     <section class="card"><h2>Promoter ranking</h2>${pros.length?pros.map((p,i)=>`<div class="fn"><div class="fnh"><span>${i+1}. ${esc(p.n)}</span><span>${p.c} application(s) · ${p.bk} booked · ${peso(p.amt)}</span></div><div class="fnb"><i style="width:${p.c?Math.max(p.c/mx*100,3):0}%;background:var(--brand)"></i></div></div>`).join(""):"No promoters yet."}</section>`;
 }
 $("tabs").addEventListener("click",e=>{const b=e.target.closest("[data-tab]"); if(!b) return;
