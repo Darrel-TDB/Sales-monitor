@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Leads Monitoring by PurpleHub</title>
+<title>Leads Management by PurpleHub</title>
 <!--LIB:START-->
 <script>
 /* @supabase/supabase-js 2.45.4 (MIT licence), embedded so the page makes no CDN request. One line changed: the "automatic publicPath" check, which only works for files loaded by URL. */
@@ -111,7 +111,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 <body>
 
 <section id="login" class="hide"><div class="box">
-  <div class="brand">Leads <i>Monitoring</i><small>by PurpleHub</small></div><h1>Hey, welcome back!</h1><p class="sub">Enter your Access ID and password. First time? Use the Access ID and temporary password your manager gave you.</p>
+  <div class="brand">Leads <i>Management</i><small>by PurpleHub</small></div><h1>Hey, welcome back!</h1><p class="sub">Enter your Access ID and password. First time? Use the Access ID and temporary password your manager gave you.</p>
   <form id="loginForm" autocomplete="on">
     <label for="aid">Access ID</label>
     <input id="aid" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="e.g. PRO-000123"><br><br>
@@ -129,7 +129,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
   </div></section>
 
 <section id="setcode" class="hide"><div class="box">
-  <div class="brand">Leads <i>Monitoring</i><small>by PurpleHub</small></div>
+  <div class="brand">Leads <i>Management</i><small>by PurpleHub</small></div>
   <h1>Set your password</h1>
   <p class="sub">Choose your own password now. The password you just used works only this once. From now on you log in with your Access ID and this password.</p>
   <label for="sc_a">New password</label>
@@ -140,7 +140,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
   <p><button id="sc_go">Save and continue</button></p><div id="sc_msg" class="msg err"></div></div></section>
 
 <div id="app" class="hide">
-  <header><div class="logo"><b>Leads <i>Monitoring</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
+  <header><div class="logo"><b>Leads <i>Management</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
   <main>
     <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" id="tabDashBtn" data-tab="dash">Dashboard</button><button class="tab hide" id="tabReqBtn" data-tab="req">Access requests<span id="reqBadge"></span></button><button class="tab hide" id="tabChgBtn" data-tab="chg">Team changes<span id="chgBadge"></span></button><button class="tab hide" id="tabCodesBtn" data-tab="codes">Access codes<span id="codeBadge"></span></button><button class="tab hide" id="tabCollBtn" data-tab="coll">Collections callout<span id="collBadge"></span></button></nav>
     <div id="tabLeads">
