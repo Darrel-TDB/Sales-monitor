@@ -89,7 +89,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 .tablewrap{overflow-x:auto}.codebox{font-size:18px;letter-spacing:.05em}
 #login a{color:var(--brand);font-weight:600;font-size:14px}
 .tabs{flex-wrap:wrap}.amts{text-align:right}.amt small{display:block;font-size:11px;font-weight:500;color:var(--mute)}
-#setcode{min-height:100vh;display:grid;place-items:center;padding:20px}#setcode .box{width:100%;max-width:420px;background:var(--card);border-radius:24px;padding:30px}#setcode h1{margin:0 0 4px;font-size:24px}#setcode p.sub{margin:0 0 16px;color:var(--mute)}
+#setcode,#chgpw{min-height:100vh;display:grid;place-items:center;padding:20px}#setcode .box,#chgpw .box{width:100%;max-width:420px;background:var(--card);border-radius:24px;padding:30px}#setcode h1,#chgpw h1{margin:0 0 4px;font-size:24px}#setcode p.sub,#chgpw p.sub{margin:0 0 16px;color:var(--mute)}#signon{display:flex;gap:12px;align-items:center;justify-content:space-between;background:var(--card);border-radius:14px;padding:10px 16px;margin:0 0 14px;font-size:13px}#signon button{padding:5px 14px}
 .pwrow{position:relative}.pwrow input{padding-right:46px}.pwrow .eye{position:absolute;right:8px;top:calc(50% + 2px);transform:translateY(-50%);margin:0}
 .dbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
 .dbar label{margin:0;flex:0 0 auto}.dbar input{width:auto;margin-top:4px;padding:8px 10px;font-size:13px}
@@ -121,6 +121,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
   </form>
   <div id="loginMsg" class="msg err"></div>
   <p><a href="#" id="rstLink">Forgot your password or locked out? Request a reset</a></p>
+  <p><a href="#" id="chgLink">Change my password</a></p>
   <div id="rstBox" class="hide">
     <label>Your Access ID (for example PRO-000123)<input id="r_ref" autocomplete="off" autocapitalize="characters"></label><br>
     <label>Full name (as registered)<input id="r_name"></label><br>
@@ -139,9 +140,25 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
   <div id="sc_rules" class="sub" style="margin:12px 0"></div>
   <p><button id="sc_go">Save and continue</button></p><div id="sc_msg" class="msg err"></div></div></section>
 
+<section id="chgpw" class="hide"><div class="box">
+  <div class="brand">Leads <i>Management</i><small>by PurpleHub</small></div>
+  <h1>Change your password</h1>
+  <p class="sub" id="cp_intro"></p>
+  <div id="cp_idw"><label for="cp_id">Access ID</label>
+  <input id="cp_id" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="e.g. PRO-000123"><br><br></div>
+  <label for="cp_cur">Current password</label>
+  <div class="pwrow"><input id="cp_cur" type="password" autocomplete="current-password"></div><br>
+  <label for="cp_a">New password</label>
+  <div class="pwrow"><input id="cp_a" type="password" autocomplete="new-password"><button type="button" class="eye" id="cpEye" aria-label="Show password"></button></div><br>
+  <label for="cp_b">Type the new password again</label>
+  <div class="pwrow"><input id="cp_b" type="password" autocomplete="new-password"></div>
+  <div id="cp_rules" class="sub" style="margin:12px 0"></div>
+  <p><button id="cp_go">Change password</button> <button class="ghost" id="cp_cancel">Cancel</button></p><div id="cp_msg" class="msg err"></div></div></section>
+
 <div id="app" class="hide">
   <header><div class="logo"><b>Leads <i>Management</i></b><small>by PurpleHub</small></div><div><span id="who" class="me"></span> <button class="ghost" id="logout">Sign out</button></div></header>
   <main>
+    <div id="signon" class="hide"></div>
     <nav class="tabs hide" id="tabs"><button class="tab on" data-tab="leads">Leads</button><button class="tab" id="tabDashBtn" data-tab="dash">Dashboard</button><button class="tab hide" id="tabReqBtn" data-tab="req">Access requests<span id="reqBadge"></span></button><button class="tab hide" id="tabChgBtn" data-tab="chg">Team changes<span id="chgBadge"></span></button><button class="tab hide" id="tabCodesBtn" data-tab="codes">Access codes<span id="codeBadge"></span></button><button class="tab hide" id="tabCollBtn" data-tab="coll">Collections callout<span id="collBadge"></span></button></nav>
     <div id="tabLeads">
     <section class="card hide" id="formCard">
@@ -207,6 +224,7 @@ input[type=checkbox]{width:auto;margin:0;padding:0}
 <label id="cl_dw" class="hide">Promised date<input type="date" id="cl_date"></label>
 <p><button id="cl_save">Save</button> <button class="ghost" id="cl_cancel">Cancel</button></p><div id="cl_msg" class="msg"></div></dialog>
 <dialog id="reasonDlg"><h2>Reason for disabling</h2><p class="msg" id="rsnFor"></p><label>Reason<select id="rsn"><option>Resigned</option><option>Terminated</option><option>End of contract</option><option>Promoted</option><option>On leave</option><option>Other</option></select></label><p class="msg">Resigned, Terminated, End of contract and Promoted close the access for good. On leave and Other can be switched back on.</p><p><button id="rsnOk">Disable</button> <button class="ghost" id="rsnNo">Cancel</button></p></dialog>
+<dialog id="pwDlg" style="max-width:420px"><h2>Your password expires soon</h2><p class="msg" id="pwDlgTxt" style="font-size:14px"></p><p><button id="pwDlgNow">Change now</button> <button class="ghost" id="pwDlgLater">Later</button></p></dialog>
 <dialog id="histDlg"><div id="histBody"></div><p><button id="histClose">Close</button></p></dialog>
 <dialog id="dupDlg"><div id="dupBody"></div><p><button id="dupClose">Close</button></p></dialog>
 
@@ -231,12 +249,15 @@ async function boot(){
   const {data:{session}} = await sb.auth.getSession();
   if(!session){ $("loginMsg").textContent=sessionStorage.getItem("idleMsg")?"You were signed out after 4 minutes of inactivity. Please log in again.":""; sessionStorage.removeItem("idleMsg"); { const pc=sessionStorage.getItem("pcMsg"); if(pc){ $("loginMsg").className="msg good"; $("loginMsg").textContent="Password saved. Log in with Access ID "+pc+" and your new password."; sessionStorage.removeItem("pcMsg"); } } $("login").classList.remove("hide"); $("app").classList.add("hide"); return; }
   { const {data:mc}=await sb.rpc("my_must_change"); if(mc){ $("login").classList.add("hide"); $("app").classList.add("hide"); $("setcode").classList.remove("hide"); return; } }
+  let pwst=null;
+  { const {data:ps}=await sb.rpc("my_pw_status"); pwst=ps||null; if(ps&&ps.expired){ $("login").classList.add("hide"); $("app").classList.add("hide"); openChg("forced"); return; } }
   const {data:profs,error} = await sb.from("profiles").select("*");
   if(error||!profs.length){ await sb.auth.signOut(); $("loginMsg").textContent="No profile set up for this account. Contact Head Office."; $("login").classList.remove("hide"); return; }
   people = Object.fromEntries(profs.map(p=>[p.id,p]));
   me = people[session.user.id];
   $("login").classList.add("hide"); $("app").classList.remove("hide");
   $("who").textContent = `${me.full_name} (${ROLE_NAME[me.role]})`;
+  postLogin(pwst);
   if(me.role==="ADMIN"){ ["tabs","tabLeads","tabDash"].forEach(i=>$(i).classList.add("hide")); $("tabAdmin").classList.remove("hide"); initAdmin(); return; }
   $("tabLeads").classList.remove("hide"); $("tabAdmin").classList.add("hide");
   $("formCard").classList.toggle("hide", me.role!=="PROMOTER");
@@ -309,7 +330,11 @@ $("loginForm").addEventListener("submit",async e=>{
   tries.push(id+"-"+pw.toUpperCase());                         // codes issued before this update
   let error=null;
   for(const t of [...new Set(tries)]){ const r=await sb.auth.signInWithPassword({email,password:t}); error=r.error; if(!error) break; }
-  if(!error){ await sb.rpc("login_ok"); boot(); return; }
+  if(!error){
+    await sb.rpc("login_ok");
+    const {data:si}=await sb.rpc("my_signon_info");
+    if(si&&si.status&&si.status!=="ACTIVE"){ await sb.auth.signOut(); m.textContent=si.reason==="Inactive 60 days"?"Your access was disabled after 60 days without activity. Please contact the Admin.":si.status==="LOCKED"?"This access is LOCKED due to multiple retries. Please contact the Admin.":"Your access is disabled. Please contact the Admin."; return; }
+    boot(); return; }
   if(/invalid login|banned/i.test(error.message)){
     const {data}=await sb.rpc("login_failed",{p_ref:id}), st=data&&data.status;
     m.textContent=st==="LOCKED"?"This access is LOCKED due to multiple retries. Please contact the Admin.":st==="DISABLED"?"Your access is disabled. Please contact the Admin.":st==="ACTIVE"?`Access ID or password not recognized. ${data.left} attempt(s) left before this access is locked.`:"Access ID or password not recognized.";
@@ -754,7 +779,7 @@ document.body.addEventListener("click",async e=>{
     setTimeout(()=>{ const b2=$("cd_"+id); if(b2) b2.textContent=""; },30000); return; }
   if(hd){ if(!confirm("Confirm you have given this code to the person?")) return; const {error}=await sb.rpc("mark_handed_over",{p_user:hd.dataset.handc}); if(error) alert(error.message); loadCodes(); }
 });
-const pwRules=p=>[["8 to 64 characters, no spaces",/^\S{8,64}$/.test(p)],["An uppercase letter",/[A-Z]/.test(p)],["A lowercase letter",/[a-z]/.test(p)],["A number",/[0-9]/.test(p)],["A special character such as ! @ # $ %",/[^A-Za-z0-9]/.test(p)]];
+const pwRules=p=>[["12 to 64 characters, no spaces",/^\S{12,64}$/.test(p)],["An uppercase letter",/[A-Z]/.test(p)],["A lowercase letter",/[a-z]/.test(p)],["A number",/[0-9]/.test(p)],["A special character such as ! @ # $ %",/[^A-Za-z0-9]/.test(p)]];
 const showRules=()=>{ $("sc_rules").innerHTML=pwRules($("sc_a").value).map(r=>`<div style="color:${r[1]?"var(--ok)":"var(--mute)"}">${r[1]?"✓":"○"} ${r[0]}</div>`).join(""); };
 $("sc_a").addEventListener("input",showRules); showRules();
 function wireEye(btnId,inputs){ const b=$(btnId); b.innerHTML=EYE; b.onclick=()=>{ const on=b.dataset.on!=="1"; b.dataset.on=on?"1":""; b.innerHTML=on?EYEOFF:EYE; b.setAttribute("aria-label",on?"Hide password":"Show password"); inputs.forEach(i=>{ $(i).type=on?"text":"password"; }); }; }
@@ -766,6 +791,76 @@ $("sc_go").onclick=async()=>{
   const {data,error}=await sb.rpc("set_password",{p_password:a}); if(error){ m.textContent=error.message; return; }
   await sb.auth.signOut(); sessionStorage.setItem("pcMsg",data); location.reload();
 };
+const showCpRules=()=>{ $("cp_rules").innerHTML=pwRules($("cp_a").value).map(r=>`<div style="color:${r[1]?"var(--ok)":"var(--mute)"}">${r[1]?"✓":"○"} ${r[0]}</div>`).join(""); };
+$("cp_a").addEventListener("input",showCpRules);
+wireEye("cpEye",["cp_cur","cp_a","cp_b"]);
+let CHG_MODE="app";
+function openChg(mode){
+  CHG_MODE=mode;
+  ["cp_id","cp_cur","cp_a","cp_b"].forEach(i=>{ $(i).value=""; });
+  $("cp_msg").textContent="";
+  $("cp_idw").classList.toggle("hide",mode!=="login");
+  $("cp_cancel").textContent=mode==="forced"?"Sign out":"Cancel";
+  $("cp_intro").textContent=mode==="login"?"Enter your Access ID, your current password and a new password. First time here? Log in with the temporary password instead.":mode==="forced"?"Your password has expired. Set a new one to continue.":"Enter your current password and choose a new one. A password used in your last 6 changes cannot be used again.";
+  $("login").classList.add("hide"); $("app").classList.add("hide"); $("setcode").classList.add("hide"); $("chgpw").classList.remove("hide");
+  showCpRules();
+}
+$("chgLink").onclick=e=>{ e.preventDefault(); openChg("login"); };
+$("cp_cancel").onclick=async()=>{
+  if(CHG_MODE==="forced"){ await sb.auth.signOut(); location.reload(); return; }
+  $("chgpw").classList.add("hide"); $(CHG_MODE==="login"?"login":"app").classList.remove("hide");
+};
+$("cp_go").onclick=async()=>{
+  const m=$("cp_msg"), btn=$("cp_go"), cur=$("cp_cur").value, a=$("cp_a").value, b=$("cp_b").value;
+  const id=$("cp_id").value.trim().toUpperCase().replace(/\s+/g,"");
+  m.className="msg err"; m.textContent="";
+  if(CHG_MODE==="login"&&!id){ m.textContent="Enter your Access ID."; return; }
+  if(!cur){ m.textContent="Enter your current password."; return; }
+  if(pwRules(a).some(r=>!r[1])){ m.textContent="Your new password does not meet all the rules yet."; return; }
+  if(a!==b){ m.textContent="The two new entries do not match."; return; }
+  if(a===cur){ m.textContent="Your new password must be different from the current one."; return; }
+  btn.disabled=true;
+  try{
+    if(CHG_MODE==="login"){
+      const r=await sb.auth.signInWithPassword({email:id.toLowerCase()+"@codes.example.com",password:cur});
+      if(r.error){
+        if(/invalid login|banned/i.test(r.error.message)){
+          const {data}=await sb.rpc("login_failed",{p_ref:id}), st=data&&data.status;
+          m.textContent=st==="LOCKED"?"This access is LOCKED due to multiple retries. Please contact the Admin.":st==="DISABLED"?"Your access is disabled. Please contact the Admin.":st==="ACTIVE"?`Access ID or current password not recognized. ${data.left} attempt(s) left before this access is locked.`:"Access ID or current password not recognized.";
+        } else m.textContent="Error: "+r.error.message;
+        return;
+      }
+    }
+    const {data,error}=await sb.rpc("change_password",{p_current:cur,p_new:a});
+    if(error){ if(CHG_MODE==="login") await sb.auth.signOut(); m.textContent=error.message; return; }
+    await sb.auth.signOut(); sessionStorage.setItem("pcMsg",data); location.reload();
+  } finally { btn.disabled=false; }
+};
+async function postLogin(ps){
+  try{
+    const {data:si}=await sb.rpc("my_signon_info");
+    const tl=si&&si.this_login;
+    if(tl){
+      const k="so_"+tl;
+      if(!sessionStorage.getItem(k)){
+        const n=si.prev_fails||0, box=$("signon");
+        const txt=(si.prev_login?"Last sign-on: "+fmtD(si.prev_login)+" (Manila time)":"This is your first sign-on")+(n>0?" · "+n+" failed attempt"+(n===1?"":"s")+" since then":"");
+        box.innerHTML="<span></span><button class=\"ghost\" id=\"soX\">OK</button>"; box.firstChild.textContent=txt; box.classList.remove("hide");
+        $("soX").onclick=()=>{ box.classList.add("hide"); try{sessionStorage.setItem(k,"1");}catch(e){} };
+      }
+    }
+    if(ps&&!ps.expired&&ps.days_left!=null&&ps.days_left<=15){
+      const k="pw_"+(tl||"");
+      if(!sessionStorage.getItem(k)){
+        sessionStorage.setItem(k,"1");
+        $("pwDlgTxt").textContent="Your password expires in "+ps.days_left+" day"+(ps.days_left===1?"":"s")+(ps.expires_on?" (on "+ps.expires_on+")":"")+". Change it now to keep your access.";
+        $("pwDlg").showModal();
+      }
+    }
+  }catch(e){}
+}
+$("pwDlgNow").onclick=()=>{ $("pwDlg").close(); openChg("app"); };
+$("pwDlgLater").onclick=()=>$("pwDlg").close();
 let BROWS=[];
 function initBulk(){
   $("b_tpl").onclick=()=>{ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob(["full_name,access_type,reports_to,region_or_territory_name\nHenry Santos,Head Office,,\nRosa Reyes,RSM,,North Luzon\nTony Cruz,TSM,Rosa Reyes,Cavite\nPia Lopez,Promoter,Tony Cruz,\n"],{type:"text/csv"})); a.download="user-upload-template.csv"; a.click(); };
